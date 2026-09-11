@@ -1,0 +1,89 @@
+# Example Lovelace view assembling all five Sense-style cards.
+# Swap every entity_id below for your own Sense / MQTT / statistics-backed sensors.
+title: Energy
+views:
+  - title: Now
+    path: energy-now
+    icon: mdi:chat-outline
+    cards:
+      - type: custom:senselike-device-bubbles-card
+        title: Now
+        cost_entity: sensor.energy_cost_today
+        current_power_entity: sensor.house_power
+        compare_text: This is a bit more than on recent Tuesdays.
+        show_timeline: true
+        devices:
+          - entity: sensor.network_rack_power
+            name: Network Rack
+          - entity: sensor.fridge_power
+            name: Fridge
+          - entity: sensor.study_tv_power
+            name: Study TV
+          - entity: sensor.home_theater_power
+            name: Home Theater
+          - entity: sensor.server_rack_power
+            name: Server Rack
+          - entity: sensor.other_power
+            name: Other
+          - entity: sensor.always_on_power
+            name: Always On
+
+  - title: Dashboard
+    path: energy-dashboard
+    icon: mdi:view-dashboard-outline
+    cards:
+      - type: custom:senselike-usage-trend-card
+        title: Usage
+        entity: sensor.home_energy_cost
+        unit: "$"
+        decimals: 0
+
+      - type: custom:senselike-compare-card
+        title: Compare
+        entity: sensor.average_power
+        unit: W
+        low_threshold: 990
+        high_threshold: 2000
+        sample_size: 60
+        sample_label: neighboring homes
+        days: 30
+
+      - type: custom:senselike-goals-card
+        title: Goals
+        goals:
+          - section: Today
+            name: Usage
+            icon: mdi:power-plug
+            entity: sensor.energy_today
+            target: 30
+            unit: kWh
+            period: day
+          - section: This month
+            name: Usage
+            icon: mdi:power-plug
+            entity: sensor.energy_month
+            target: 1500
+            unit: kWh
+            period: month
+          - name: Usage
+            icon: mdi:power-plug
+            entity: sensor.energy_month
+            target: 1100
+            unit: kWh
+            period: month
+          - name: Always On
+            icon: mdi:sync
+            entity: sensor.always_on_month
+            target: 550
+            unit: kWh
+            period: month
+
+  - title: Meter
+    path: energy-meter
+    icon: mdi:pulse
+    cards:
+      - type: custom:senselike-power-meter-card
+        title: Meter
+        entity: sensor.house_power
+        price_per_kwh: 0.14
+        # price_entity: sensor.electricity_price   # optional, overrides price_per_kwh

@@ -2,9 +2,6 @@
   "name": "SenseLike Cards",
   "hacs": "1.0.0",
   "homeassistant": "2024.6.0",
-  "documentation": "https://github.com/seanharsh/HA-SenseLike",
-  "issues": "https://github.com/seanharsh/HA-SenseLike/issues",
-  "requirements": [],
   "render_readme": true,
   "filename": "senselike-cards.js"
 }

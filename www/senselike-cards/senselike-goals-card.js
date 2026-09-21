@@ -53,13 +53,13 @@ class SenseLikeGoalsCard extends HTMLElement {
           --muted: ${this._config.muted_color};
         }
         .head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-        .label { font-size:12px; font-weight:700; letter-spacing:.08em; color: var(--muted); text-transform:uppercase; }
+        .label { font-size: calc(12px * var(--ha-font-size-scale, 1)); font-weight:700; letter-spacing:.08em; color: var(--muted); text-transform:uppercase; }
         .chev {
           width:26px; height:26px; border-radius:50%; border:none; cursor:pointer;
           background: color-mix(in srgb, var(--accent) 18%, transparent);
           color: var(--accent); display:flex; align-items:center; justify-content:center;
         }
-        .section-title { font-size:15px; font-weight:600; color: var(--primary-text-color); margin: 14px 0 10px; border-bottom: 1px solid var(--divider-color); padding-bottom:6px; }
+        .section-title { font-size: calc(15px * var(--ha-font-size-scale, 1)); font-weight:600; color: var(--primary-text-color); margin: 14px 0 10px; border-bottom: 1px solid var(--divider-color); padding-bottom:6px; }
         .goal { display:flex; align-items:flex-start; gap:10px; margin-bottom:14px; }
         .icon-wrap {
           width:30px; height:30px; border-radius:50%; flex-shrink:0; margin-top:2px;
@@ -69,11 +69,11 @@ class SenseLikeGoalsCard extends HTMLElement {
         .goal-body { flex:1; min-width:0; }
         .bar-row { position:relative; height:30px; }
         .now-mark { position:absolute; top:-14px; height:44px; width:1px; background: var(--divider-color, #999); }
-        .now-label { position:absolute; top:-28px; font-size:10px; font-weight:700; color: var(--secondary-text-color); transform: translateX(-50%); white-space:nowrap; }
+        .now-label { position:absolute; top:-28px; font-size: calc(10px * var(--ha-font-size-scale, 1)); font-weight:700; color: var(--secondary-text-color); transform: translateX(-50%); white-space:nowrap; }
         .track { position:absolute; top:6px; left:0; right:0; height:18px; border-radius:9px; background: color-mix(in srgb, var(--muted) 22%, transparent); overflow:hidden; }
         .fill { height:100%; border-radius:9px; background: var(--accent); display:flex; align-items:center; padding-left:10px; box-sizing:border-box; white-space:nowrap; overflow:hidden; }
-        .fill span { font-size:12px; font-weight:700; color: white; }
-        .meta-row { display:flex; justify-content:space-between; margin-top:5px; font-size:12px; }
+        .fill span { font-size: calc(12px * var(--ha-font-size-scale, 1)); font-weight:700; color: white; }
+        .meta-row { display:flex; justify-content:space-between; margin-top:5px; font-size: calc(12px * var(--ha-font-size-scale, 1)); }
         .meta-left { color: var(--secondary-text-color); }
         .meta-right { color: var(--accent); font-weight:600; }
       </style>
@@ -126,7 +126,7 @@ class SenseLikeGoalsCard extends HTMLElement {
 
       html += `
         <div class="goal">
-          <div class="icon-wrap"><ha-icon icon="${this._esc(icon)}" style="--mdc-icon-size:16px;"></ha-icon></div>
+          <div class="icon-wrap"><ha-icon icon="${this._esc(icon)}" style="--mdc-icon-size: calc(16px * var(--ha-font-size-scale, 1));"></ha-icon></div>
           <div class="goal-body">
             <div class="bar-row">
               <div class="now-mark" style="left:${(frac * 100).toFixed(2)}%;"></div>
@@ -280,12 +280,12 @@ class SenseLikeGoalsCardEditor extends HTMLElement {
         .goal-row { border:1px solid var(--divider-color); border-radius:8px; padding:16px 12px 4px; position:relative; }
         .remove-btn {
           position:absolute; top:8px; right:8px; cursor:pointer; color: var(--secondary-text-color);
-          background:none; border:none; font-size:14px; line-height:1;
+          background:none; border:none; font-size: calc(14px * var(--ha-font-size-scale, 1)); line-height:1;
         }
-        .section-label { font-size:14px; font-weight:600; color: var(--primary-text-color); margin-top:8px; }
+        .section-label { font-size: calc(14px * var(--ha-font-size-scale, 1)); font-weight:600; color: var(--primary-text-color); margin-top:8px; }
         .add-btn {
           align-self:flex-start; border:1px solid var(--primary-color); color: var(--primary-color);
-          background:none; border-radius:6px; padding:8px 14px; cursor:pointer; font-size:14px;
+          background:none; border-radius:6px; padding:8px 14px; cursor:pointer; font-size: calc(14px * var(--ha-font-size-scale, 1));
         }
       </style>
       <div class="wrap">

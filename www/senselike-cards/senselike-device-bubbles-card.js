@@ -13,6 +13,19 @@ function packCircles(items, width, height) {
   // real overlaps whenever the natural layout doesn't fit the box. Instead we let
   // circles settle freely, then uniformly scale+translate the whole result to fit
   // (a similarity transform, so touching-not-overlapping is preserved exactly).
+  //
+  // The origin-pull is biased per axis toward the container's own aspect ratio.
+  // Without this, the cluster relaxes into a roughly circular blob regardless of
+  // the box's shape, so a wide box's final fit-scale ends up limited by height
+  // (the blob touches top/bottom first) while wasting the side margins — smaller
+  // bubbles and smaller text than the box could actually support. Biasing the
+  // pull to (loosely) match the box's aspect ratio makes the natural cluster
+  // shape closer to it, so both dimensions hit their limit together and the
+  // fit-scale — and every bubble's final radius — comes out larger.
+  const aspect = Math.max(0.4, Math.min(2.5, width / height));
+  const bias = Math.sqrt(aspect);
+  const decayX = 1 - (1 - 0.988) / bias;
+  const decayY = 1 - (1 - 0.988) * bias;
   for (let iter = 0; iter < 300; iter++) {
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
@@ -29,8 +42,8 @@ function packCircles(items, width, height) {
       }
     }
     items.forEach((it) => {
-      it.x *= 0.988;
-      it.y *= 0.988;
+      it.x *= decayX;
+      it.y *= decayY;
     });
   }
 
@@ -194,6 +207,19 @@ function renderBubblesInto(wrap, items, bubbleEls, sizing, requestRerender) {
 
   const wrapRect = wrap.getBoundingClientRect();
   const W = wrapRect.width || 320, H = wrapRect.height || 270;
+  const fontScale = parseFloat(getComputedStyle(wrap).getPropertyValue('--ha-font-size-scale')) || 1;
+  // The card overlays a live-wattage readout in the bottom-right corner (and,
+  // on the small inline card, an expand button in the bottom-left) — reserve a
+  // strip along the bottom of the *packing* box so no bubble ever lands under
+  // either one. CSS padding can't do this: percentages on an absolutely
+  // positioned child resolve against the containing block's padding box, which
+  // padding is itself part of, so bubbles would still happily render inside a
+  // padding-bottom area. Passing a shorter height into packCircles keeps the
+  // cluster itself out of that zone, while positions are still converted to
+  // percentages of the real (taller) box below, so the reserved strip actually
+  // stays empty on screen.
+  const bottomReserve = 32 * fontScale;
+  const packH = Math.max(H - bottomReserve, 40);
   const maxVal = Math.max(...items.map((i) => i.value));
   items.forEach((it) => {
     it.r = minR + (maxR - minR) * Math.sqrt(it.value / maxVal);
@@ -205,7 +231,7 @@ function renderBubblesInto(wrap, items, bubbleEls, sizing, requestRerender) {
     // to compensate, for free.
     if (wrap._enlargedEntity === it.entity) it.r *= 1.35;
   });
-  packCircles(items, W, H);
+  packCircles(items, W, packH);
 
   const seen = new Set();
   items.forEach((it) => {
@@ -242,13 +268,21 @@ function renderBubblesInto(wrap, items, bubbleEls, sizing, requestRerender) {
     const prevVal = el.dataset.lastValue != null ? Number(el.dataset.lastValue) : null;
     nameEl.textContent = it.name;
     wattsEl.textContent = `${roundedVal} ${it.unit}`;
-    // No floor here on purpose: it.r is already the real, container-scaled
-    // pixel radius (packCircles scales the whole cluster up or down to fill
-    // whatever box it's given), so font size stays a pure proportion of it —
-    // a fixed pixel floor would make small bubbles' text look disproportionately
-    // huge in the small card and disproportionately tiny in the fullscreen
-    // expand view, where everything else scales up several times over.
-    el.querySelector('.label').style.fontSize = `${(it.r / 5.5).toFixed(2)}px`;
+    // it.r is the real, container-scaled pixel radius (packCircles scales the
+    // whole cluster to fill whatever box it's given), so font size is mostly a
+    // pure proportion of it — but the card and dialog share the same minR/maxR,
+    // so a small legibility floor doesn't break proportionality between them,
+    // it just keeps the smallest (lowest-wattage) bubbles' text from shrinking
+    // past readable. Scaled by the theme's font-size preference like everything else.
+    const labelPx = Math.max(it.r / 5.5, 10) * fontScale;
+    el.querySelector('.label').style.fontSize = `${labelPx.toFixed(2)}px`;
+    // Ellipsis (see .label .name/.watts) handles horizontal overflow; this
+    // handles vertical overflow by dropping the wattage line entirely once
+    // the bubble is too small to hold both lines without them colliding or
+    // spilling past the circle — better than two half-clipped lines of text.
+    const availableHeight = it.r * 2 - 12; // minus the label's 6px top+bottom-equivalent padding
+    const twoLineHeight = labelPx * 1.15 + 2 + labelPx * 0.85 * 1.15;
+    wattsEl.style.display = availableHeight < twoLineHeight ? 'none' : '';
     el.style.left = `${((it.x / W) * 100).toFixed(2)}%`;
     el.style.top = `${((it.y / H) * 100).toFixed(2)}%`;
     el.style.width = `${((it.r * 2 / W) * 100).toFixed(2)}%`;
@@ -484,8 +518,8 @@ class SenseLikeCostDialog extends HTMLElement {
         }
         .compare-header { display:flex; justify-content:space-between; margin-bottom:24px; }
         .compare-col.right { text-align:right; }
-        .compare-label { font-size:13px; font-weight:600; color: var(--secondary-text-color); margin-bottom:4px; }
-        .compare-amt { font-size:28px; font-weight:700; }
+        .compare-label { font-size: calc(13px * var(--ha-font-size-scale, 1)); font-weight:600; color: var(--secondary-text-color); margin-bottom:4px; }
+        .compare-amt { font-size: calc(28px * var(--ha-font-size-scale, 1)); font-weight:700; }
         .compare-amt.muted { color: var(--secondary-text-color); }
         .compare-amt.accent { color: var(--accent); }
         .bars-wrap {
@@ -498,11 +532,11 @@ class SenseLikeCostDialog extends HTMLElement {
         .device-list { display:flex; flex-direction:column; gap:10px; }
         .device-row { display:flex; align-items:center; gap:12px; background: var(--secondary-background-color, rgba(127,127,127,.08)); border-radius:14px; padding:12px 16px; }
         .device-icon { width:32px; height:32px; border-radius:50%; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-        .device-name { flex:1; font-size:15px; font-weight:600; }
-        .device-past { font-size:14px; color: var(--secondary-text-color); width:60px; text-align:right; }
-        .device-today { font-size:14px; font-weight:700; color: var(--accent); width:60px; text-align:right; }
+        .device-name { flex:1; font-size: calc(15px * var(--ha-font-size-scale, 1)); font-weight:600; }
+        .device-past { font-size: calc(14px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); width:60px; text-align:right; }
+        .device-today { font-size: calc(14px * var(--ha-font-size-scale, 1)); font-weight:700; color: var(--accent); width:60px; text-align:right; }
         .empty { text-align:center; padding:80px 0; color: var(--secondary-text-color); }
-        .rate-hint { text-align:center; font-size:12px; color: var(--secondary-text-color); margin-top:16px; }
+        .rate-hint { text-align:center; font-size: calc(12px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); margin-top:16px; }
       </style>
       <div class="overlay">
         <div class="header">
@@ -585,11 +619,11 @@ class SenseLikeBubblesExpandDialog extends HTMLElement {
            viewport (vmin, so portrait and landscape both stay sane) instead
            of sitting at the same fixed size the small card uses — clamped so
            a tiny phone and a huge wall display both stay readable. */
-        .headline { font-size: clamp(20px, 4vmin, 44px); font-weight:600; }
+        .headline { font-size: calc(clamp(20px, 4vmin, 44px) * var(--ha-font-size-scale, 1)); font-weight:600; }
         .headline .amt { color: var(--accent); }
-        .compare-text { font-size: clamp(13px, 2.2vmin, 24px); color: var(--secondary-text-color); margin-top:2px; }
+        .compare-text { font-size: calc(clamp(13px, 2.2vmin, 24px) * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); margin-top:2px; }
         .bubble-wrap { position:relative; flex:1; min-height:0; }
-        .live-readout { position:absolute; right:4px; bottom:0; display:flex; align-items:center; gap:6px; font-size: clamp(14px, 2.4vmin, 28px); font-weight:700; color: var(--primary-text-color); }
+        .live-readout { position:absolute; right:4px; bottom:0; display:flex; align-items:center; gap:6px; font-size: calc(clamp(14px, 2.4vmin, 28px) * var(--ha-font-size-scale, 1)); font-weight:700; color: var(--primary-text-color); }
         .live-readout .pulse-icon { animation: senselike-pulse 1.8s ease-in-out infinite; --mdc-icon-size: 1.1em; }
         @keyframes senselike-pulse {
           0%, 100% { opacity:.55; transform:scale(.85); }
@@ -612,8 +646,14 @@ class SenseLikeBubblesExpandDialog extends HTMLElement {
           width:100%; text-align:center; box-sizing:border-box; padding:0 6px;
           display:flex; flex-direction:column; align-items:center; gap:2px;
         }
-        .bubble .label .name { line-height:1.15; }
-        .bubble .label .watts { font-weight:800; opacity:.9; font-size:0.85em; }
+        .bubble .label .name {
+          display:block; width:100%; line-height:1.15;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        }
+        .bubble .label .watts {
+          display:block; width:100%; font-weight:800; opacity:.9; font-size:0.85em;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        }
         .bubble.pulse { animation: senselike-bubble-pulse .5s ease; }
         @keyframes senselike-bubble-pulse {
           0% { filter:brightness(1); }
@@ -735,7 +775,7 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
           --muted: ${this._config.muted_color};
           --other: ${this._config.other_color};
         }
-        .headline { display:flex; align-items:center; gap:8px; font-size:20px; font-weight:600; color: var(--primary-text-color); }
+        .headline { display:flex; align-items:center; gap:8px; font-size: calc(20px * var(--ha-font-size-scale, 1)); font-weight:600; color: var(--primary-text-color); }
         .headline .amt { color: var(--accent); }
         .arrow {
           width:22px; height:22px; border-radius:50%; border:1.5px solid var(--primary-text-color);
@@ -743,8 +783,8 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
           display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;
         }
         .info-row { display:flex; align-items:center; gap:8px; margin-top:6px; }
-        .compare-text { font-size:14px; color: var(--secondary-text-color); }
-        .bubble-wrap { position:relative; margin-top:12px; height:270px; }
+        .compare-text { font-size: calc(14px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); }
+        .bubble-wrap { position:relative; margin-top:12px; height:330px; }
         .bubble {
           position:absolute; border-radius:50%; display:flex; align-items:center; justify-content:center;
           text-align:center; color:white; font-weight:700; padding:6px; box-sizing:border-box;
@@ -762,21 +802,27 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
           width:100%; text-align:center; box-sizing:border-box; padding:0 6px;
           display:flex; flex-direction:column; align-items:center; gap:2px;
         }
-        .bubble .label .name { line-height:1.15; }
-        .bubble .label .watts { font-weight:800; opacity:.9; font-size:0.85em; }
+        .bubble .label .name {
+          display:block; width:100%; line-height:1.15;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        }
+        .bubble .label .watts {
+          display:block; width:100%; font-weight:800; opacity:.9; font-size:0.85em;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        }
         .bubble.pulse { animation: senselike-bubble-pulse .5s ease; }
         @keyframes senselike-bubble-pulse {
           0% { filter:brightness(1); }
           40% { filter:brightness(1.35); }
           100% { filter:brightness(1); }
         }
-        .live-readout { position:absolute; right:4px; bottom:0; display:flex; align-items:center; gap:6px; font-size:14px; font-weight:700; color: var(--primary-text-color); }
+        .live-readout { position:absolute; right:4px; bottom:0; display:flex; align-items:center; gap:6px; font-size: calc(14px * var(--ha-font-size-scale, 1)); font-weight:700; color: var(--primary-text-color); }
         .live-readout .pulse-icon { animation: senselike-pulse 1.8s ease-in-out infinite; }
         @keyframes senselike-pulse {
           0%, 100% { opacity:.55; transform:scale(.85); }
           50% { opacity:1; transform:scale(1.15); }
         }
-        .empty { font-size:13px; color: var(--secondary-text-color); padding: 30px 0; text-align:center; }
+        .empty { font-size: calc(13px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); padding: 30px 0; text-align:center; }
         .expand-btn { position:absolute; left:4px; bottom:0; background: var(--card-background-color, rgba(0,0,0,.4)); }
         @media (prefers-reduced-motion: reduce) {
           .bubble, .live-readout .pulse-icon { transition:none !important; animation:none !important; }
@@ -840,18 +886,18 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
     if (!ids.length) return;
 
     try {
-      const todayStats = await hass.callWS({
-        type: 'recorder/statistics_during_period',
-        start_time: new Date(todayStart.getTime() - 3600000).toISOString(),
-        end_time: now.toISOString(),
-        statistic_ids: ids,
-        period: 'hour',
-        types: ['sum'],
-      });
-
+      // Each `_daily_energy` sensor is a `total_increasing` counter that already
+      // resets at midnight, so its live state IS today's running total — sum
+      // that directly rather than asking the recorder for today's statistics.
+      // The recorder only finalizes a day's long-term statistics once that day
+      // is over, so `statistics_during_period` for the still-in-progress today
+      // comes back empty (verified: 6 days of history, 0 for today) — using it
+      // here would silently read as 0 kWh, and therefore $0.00, all day long.
       let todayKwh = 0;
       ids.forEach((id) => {
-        toHourlyKwh(todayStats[id]).forEach((v, h) => { if (h <= currentHour) todayKwh += v; });
+        const st = hass.states[id];
+        const v = st ? Number(st.state) : NaN;
+        if (!Number.isNaN(v)) todayKwh += v;
       });
 
       if (!this._config.cost_entity && rate != null) {
@@ -938,7 +984,7 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
         if (!liveEl) {
           liveEl = document.createElement('div');
           liveEl.className = 'live-readout';
-          liveEl.innerHTML = '<ha-icon class="pulse-icon" icon="mdi:pulse" style="color:var(--accent); --mdc-icon-size:16px;"></ha-icon><span class="live-value"></span>';
+          liveEl.innerHTML = '<ha-icon class="pulse-icon" icon="mdi:pulse" style="color:var(--accent); --mdc-icon-size: calc(16px * var(--ha-font-size-scale, 1));"></ha-icon><span class="live-value"></span>';
           wrap.appendChild(liveEl);
         }
         liveEl.querySelector('.live-value').textContent = `${Math.round(Number(st.state)).toLocaleString()} W`;
@@ -1107,12 +1153,12 @@ class SenseLikeDeviceBubblesCardEditor extends HTMLElement {
         .device-row { border:1px solid var(--divider-color); border-radius:8px; padding:16px 12px 4px; position:relative; }
         .remove-btn {
           position:absolute; top:8px; right:8px; cursor:pointer; color: var(--secondary-text-color);
-          background:none; border:none; font-size:14px; line-height:1;
+          background:none; border:none; font-size: calc(14px * var(--ha-font-size-scale, 1)); line-height:1;
         }
-        .section-label { font-size:14px; font-weight:600; color: var(--primary-text-color); margin-top:8px; }
+        .section-label { font-size: calc(14px * var(--ha-font-size-scale, 1)); font-weight:600; color: var(--primary-text-color); margin-top:8px; }
         .add-btn {
           align-self:flex-start; border:1px solid var(--primary-color); color: var(--primary-color);
-          background:none; border-radius:6px; padding:8px 14px; cursor:pointer; font-size:14px;
+          background:none; border-radius:6px; padding:8px 14px; cursor:pointer; font-size: calc(14px * var(--ha-font-size-scale, 1));
         }
       </style>
       <div class="wrap">

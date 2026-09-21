@@ -99,8 +99,8 @@ class SenseLikeTimelineCard extends HTMLElement {
       <style>
         :host { display:block; }
         ha-card { padding: 16px 18px 18px; --accent: ${this._config.accent_color}; --muted: ${this._config.muted_color}; }
-        .timeline-label { font-size:12px; font-weight:700; letter-spacing:.08em; color: var(--muted); text-transform:uppercase; margin-bottom:12px; }
-        .empty { font-size:13px; color: var(--secondary-text-color); padding: 30px 0; text-align:center; }
+        .timeline-label { font-size: calc(12px * var(--ha-font-size-scale, 1)); font-weight:700; letter-spacing:.08em; color: var(--muted); text-transform:uppercase; margin-bottom:12px; }
+        .empty { font-size: calc(13px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); padding: 30px 0; text-align:center; }
         .tl-item { display:flex; align-items:center; gap:10px; margin-bottom:8px; animation: senselike-fade-in .4s ease both; }
         @keyframes senselike-fade-in {
           from { opacity:0; transform: translateY(6px); }
@@ -109,13 +109,13 @@ class SenseLikeTimelineCard extends HTMLElement {
         @media (prefers-reduced-motion: reduce) {
           .tl-item { animation:none !important; }
         }
-        .tl-time { width:52px; flex-shrink:0; font-size:11px; color: var(--secondary-text-color); text-align:right; }
+        .tl-time { width:52px; flex-shrink:0; font-size: calc(11px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); text-align:right; }
         .tl-row {
           flex:1; display:flex; align-items:center; gap:10px; background: var(--secondary-background-color, rgba(127,127,127,.08));
           border-radius:10px; padding:8px 12px;
         }
         .tl-icon { width:26px; height:26px; border-radius:50%; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-        .tl-text { font-size:13px; color: var(--primary-text-color); }
+        .tl-text { font-size: calc(13px * var(--ha-font-size-scale, 1)); color: var(--primary-text-color); }
       </style>
       <ha-card>
         <div class="timeline-label">${this._esc(this._config.title)}</div>
@@ -227,7 +227,7 @@ class SenseLikeTimelineCard extends HTMLElement {
             <div class="tl-item" style="animation-delay:${i * 40}ms;">
               <div class="tl-time">${time}</div>
               <div class="tl-row">
-                <div class="tl-icon"><ha-icon icon="mdi:power-socket" style="--mdc-icon-size:14px;"></ha-icon></div>
+                <div class="tl-icon"><ha-icon icon="mdi:power-socket" style="--mdc-icon-size: calc(14px * var(--ha-font-size-scale, 1));"></ha-icon></div>
                 <div class="tl-text">${msg}</div>
               </div>
             </div>
@@ -364,12 +364,12 @@ class SenseLikeTimelineCardEditor extends HTMLElement {
         .device-row { border:1px solid var(--divider-color); border-radius:8px; padding:16px 12px 4px; position:relative; }
         .remove-btn {
           position:absolute; top:8px; right:8px; cursor:pointer; color: var(--secondary-text-color);
-          background:none; border:none; font-size:14px; line-height:1;
+          background:none; border:none; font-size: calc(14px * var(--ha-font-size-scale, 1)); line-height:1;
         }
-        .section-label { font-size:14px; font-weight:600; color: var(--primary-text-color); margin-top:8px; }
+        .section-label { font-size: calc(14px * var(--ha-font-size-scale, 1)); font-weight:600; color: var(--primary-text-color); margin-top:8px; }
         .add-btn {
           align-self:flex-start; border:1px solid var(--primary-color); color: var(--primary-color);
-          background:none; border-radius:6px; padding:8px 14px; cursor:pointer; font-size:14px;
+          background:none; border-radius:6px; padding:8px 14px; cursor:pointer; font-size: calc(14px * var(--ha-font-size-scale, 1));
         }
       </style>
       <div class="wrap">

@@ -53,26 +53,26 @@ class SenseLikePowerMeterCard extends HTMLElement {
           --muted: ${this._config.muted_color};
         }
         .head { display:flex; align-items:baseline; justify-content:flex-end; gap:6px; margin-bottom:6px; }
-        .watts { font-size:26px; font-weight:800; color: var(--primary-text-color); font-variant-numeric: tabular-nums; }
-        .cost { font-size:13px; color: var(--secondary-text-color); }
+        .watts { font-size: calc(26px * var(--ha-font-size-scale, 1)); font-weight:800; color: var(--primary-text-color); font-variant-numeric: tabular-nums; }
+        .cost { font-size: calc(13px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); }
         .chart-wrap { position:relative; }
         svg { width:100%; height:190px; display:block; overflow:visible; }
-        .empty { font-size:13px; color: var(--secondary-text-color); padding: 40px 0; text-align:center; }
+        .empty { font-size: calc(13px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); padding: 40px 0; text-align:center; }
         .date-row { display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
-        .date { font-size:12px; color: var(--secondary-text-color); }
+        .date { font-size: calc(12px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); }
         .tabs { display:flex; gap:4px; }
         .tab {
-          border:none; background:transparent; font-size:12px; font-weight:700; letter-spacing:.03em;
+          border:none; background:transparent; font-size: calc(12px * var(--ha-font-size-scale, 1)); font-weight:700; letter-spacing:.03em;
           color: var(--secondary-text-color); padding:4px 8px; border-radius:6px; cursor:pointer;
         }
         .tab.active { color: var(--accent); border-bottom:2px solid var(--accent); }
-        .badge { position:absolute; font-size:10px; font-weight:700; padding:2px 6px; border-radius:10px; color:white; white-space:nowrap; transform:translate(-50%,-100%); }
+        .badge { position:absolute; font-size: calc(10px * var(--ha-font-size-scale, 1)); font-weight:700; padding:2px 6px; border-radius:10px; color:white; white-space:nowrap; transform:translate(-50%,-100%); }
         .badge.pos { background: var(--accent); }
         .badge.neg { background: var(--muted); }
       </style>
       <ha-card>
         <div class="head">
-          <ha-icon icon="mdi:power-plug" style="color:var(--accent); --mdc-icon-size:18px;"></ha-icon>
+          <ha-icon icon="mdi:power-plug" style="color:var(--accent); --mdc-icon-size: calc(18px * var(--ha-font-size-scale, 1));"></ha-icon>
           <span class="watts" id="watts">–</span>
           <span class="cost" id="cost"></span>
         </div>

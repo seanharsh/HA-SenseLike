@@ -44,13 +44,9 @@ Chronological event log showing device on/off events throughout the day. Underst
 
 ### Manual
 
-1. Copy `www/senselike-cards/` into your Home Assistant `config/www/` directory
+1. Copy `dist/senselike-cards.js` into your Home Assistant `config/www/` directory
 2. In **Settings → Dashboards → Resources**, add as **JavaScript Module**:
-   - `/local/senselike-cards/senselike-device-bubbles-card.js`
-   - `/local/senselike-cards/senselike-power-meter-card.js`
-   - `/local/senselike-cards/senselike-goals-card.js`
-   - `/local/senselike-cards/senselike-usage-trend-card.js`
-   - `/local/senselike-cards/senselike-timeline-card.js`
+   - `/local/senselike-cards.js`
 3. Add cards to your dashboard in YAML mode (see `example-dashboard.yaml`)
 
 ## Requirements

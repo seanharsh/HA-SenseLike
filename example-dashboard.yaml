@@ -38,16 +38,6 @@ views:
         unit: "$"
         decimals: 0
 
-      - type: custom:senselike-compare-card
-        title: Compare
-        entity: sensor.average_power
-        unit: W
-        low_threshold: 990
-        high_threshold: 2000
-        sample_size: 60
-        sample_label: neighboring homes
-        days: 30
-
       - type: custom:senselike-goals-card
         title: Goals
         goals:

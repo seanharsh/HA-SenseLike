@@ -1,6 +1,8 @@
 # Changelog
 
-## [0.1.0] - 2026-08-27
+## [Unreleased]
+
+## [0.1.0] - 2026-09-20
 
 ### Added
 - Initial release of SenseLike custom Lovelace cards

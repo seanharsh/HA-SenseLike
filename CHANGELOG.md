@@ -2,11 +2,6 @@
 
 ## [Unreleased]
 
-### Changed
-- Cards are now published as a single bundled `dist/senselike-cards.js` (concatenation of
-  `www/senselike-cards/*.js`, regenerated via `dist/build.sh`), matching HACS's single-resource
-  plugin structure. Manual installs now add one resource instead of five.
-
 ## [0.1.0] - 2026-09-20
 
 ### Added
@@ -19,6 +14,11 @@
 - Themeable accent and muted colors (defaults to HA primary color)
 - No HACS dependencies required
 - Example dashboard configuration included
+
+### Changed
+- Cards are now published as a single bundled `dist/senselike-cards.js` (concatenation of
+  `www/senselike-cards/*.js`, regenerated via `dist/build.sh`), matching HACS's single-resource
+  plugin structure. Manual installs now add one resource instead of five.
 
 ### Requirements
 - Home Assistant 2024.6.0+

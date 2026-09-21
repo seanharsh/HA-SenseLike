@@ -50,25 +50,25 @@ class SenseLikeUsageTrendCard extends HTMLElement {
           --muted: ${this._config.muted_color};
         }
         .head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-        .label { font-size:12px; font-weight:700; letter-spacing:.08em; color: var(--muted); text-transform:uppercase; }
+        .label { font-size: calc(12px * var(--ha-font-size-scale, 1)); font-weight:700; letter-spacing:.08em; color: var(--muted); text-transform:uppercase; }
         .chev {
           width:26px; height:26px; border-radius:50%; border:none; cursor:pointer;
           background: color-mix(in srgb, var(--accent) 18%, transparent);
           color: var(--accent); display:flex; align-items:center; justify-content:center;
         }
-        .statement { font-size:19px; font-weight:600; color: var(--primary-text-color); line-height:1.3; margin-bottom:14px; }
+        .statement { font-size: calc(19px * var(--ha-font-size-scale, 1)); font-weight:600; color: var(--primary-text-color); line-height:1.3; margin-bottom:14px; }
         .legend { display:flex; gap:22px; margin-bottom:8px; }
-        .legend-item { display:flex; align-items:center; gap:6px; font-size:13px; color: var(--secondary-text-color); }
+        .legend-item { display:flex; align-items:center; gap:6px; font-size: calc(13px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); }
         .dot { width:9px; height:9px; border-radius:50%; }
         .dot.cur { background: var(--accent); }
         .dot.prev { background: var(--muted); opacity:.7; }
-        .amt { font-size:20px; font-weight:700; font-variant-numeric: tabular-nums; }
+        .amt { font-size: calc(20px * var(--ha-font-size-scale, 1)); font-weight:700; font-variant-numeric: tabular-nums; }
         .amt.cur { color: var(--accent); }
         .amt.prev { color: var(--primary-text-color); }
         .chart-wrap { margin-top:6px; }
         svg { width:100%; height:130px; display:block; overflow:visible; }
-        .axis { display:flex; justify-content:space-between; font-size:12px; color: var(--secondary-text-color); margin-top:4px; }
-        .empty { font-size:13px; color: var(--secondary-text-color); padding: 10px 0; }
+        .axis { display:flex; justify-content:space-between; font-size: calc(12px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); margin-top:4px; }
+        .empty { font-size: calc(13px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); padding: 10px 0; }
       </style>
       <ha-card>
         <div class="head">

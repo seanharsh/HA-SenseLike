@@ -1,7 +1,8 @@
 .DS_Store
 *.swp
 *.swo
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 .idea/
 node_modules/
 build/

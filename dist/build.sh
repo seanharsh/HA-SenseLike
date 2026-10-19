@@ -1,5 +1,7 @@
 #!/bin/sh
-# Regenerates dist/senselike-cards.js by concatenating www/senselike-cards/*.js.
+# Regenerates dist/senselike-cards.js from www/senselike-cards/*.js.
+# Each file is wrapped in its own block so top-level declarations (e.g. resolveDeviceList)
+# stay file-scoped; module code rejects duplicate top-level declarations.
 # Run from the repo root before tagging a release.
 set -e
 cd "$(dirname "$0")/.."
@@ -15,6 +17,14 @@ cd "$(dirname "$0")/.."
   do
     echo ""
     echo "// ---- $f ----"
+    echo "{"
     cat "$f"
+    echo ""
+    echo "}"
   done
 } > dist/senselike-cards.js
+
+node_check_dir=$(mktemp -d)
+cp dist/senselike-cards.js "$node_check_dir/senselike-cards.mjs"
+node --check "$node_check_dir/senselike-cards.mjs"
+rm -rf "$node_check_dir"

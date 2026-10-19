@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-19
+
+### Fixed
+- `dist/senselike-cards.js` failed to load as a JavaScript module (duplicate top-level
+  `resolveDeviceList`), so no cards registered. `dist/build.sh` now wraps each card file in its
+  own block scope and syntax-checks the bundle as a module on every build.
+
 ## [0.1.0] - 2026-09-20
 
 ### Added

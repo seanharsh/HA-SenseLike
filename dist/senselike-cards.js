@@ -1,6 +1,7 @@
 // Bundled build of www/senselike-cards/*.js — regenerate with dist/build.sh before tagging a release.
 
 // ---- www/senselike-cards/senselike-device-bubbles-card.js ----
+{
 // Sense-style "Now" card — circle-packed device power bubbles.
 // type: custom:senselike-device-bubbles-card
 function packCircles(items, width, height) {
@@ -1205,7 +1206,10 @@ window.customCards.push({
   description: 'Circle-packed device power bubble chart, Sense-app style.',
 });
 
+}
+
 // ---- www/senselike-cards/senselike-power-meter-card.js ----
+{
 // Sense-style live "Meter" card — power over time with MIN/HR/DAY/WK/MO range tabs.
 // type: custom:senselike-power-meter-card
 const RANGES = {
@@ -1483,7 +1487,10 @@ window.customCards.push({
   description: 'Live power over time with MIN/HR/DAY/WK/MO range tabs, Sense-app style.',
 });
 
+}
+
 // ---- www/senselike-cards/senselike-goals-card.js ----
+{
 // Sense-style "Goals" card — progress bars with a "NOW" time marker and trend projection.
 // type: custom:senselike-goals-card
 class SenseLikeGoalsCard extends HTMLElement {
@@ -1806,7 +1813,10 @@ window.customCards.push({
   description: 'Usage goal progress bars with a "NOW" time marker and trend projection, Sense-app style.',
 });
 
+}
+
 // ---- www/senselike-cards/senselike-usage-trend-card.js ----
+{
 // Sense-style "Usage" trend card — monthly cumulative usage vs. last month.
 // type: custom:senselike-usage-trend-card
 class SenseLikeUsageTrendCard extends HTMLElement {
@@ -2119,7 +2129,10 @@ window.customCards.push({
   description: 'Monthly cumulative usage/cost vs. last month, Sense-app style.',
 });
 
+}
+
 // ---- www/senselike-cards/senselike-timeline-card.js ----
+{
 // Sense-style "Today" event timeline — real device on/off events sourced from
 // binary_sensor/switch siblings (via the HA device registry) or synthesized from
 // power-sensor history when no on/off entity exists.
@@ -2534,3 +2547,5 @@ window.customCards.push({
   name: 'SenseLike Timeline',
   description: 'Today\'s device on/off event timeline, Sense-app style.',
 });
+
+}

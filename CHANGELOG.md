@@ -4,6 +4,7 @@
 
 ### Added
 - Cards now show a live preview in the Lovelace card picker.
+- Cards define default grid sizing, so sections dashboards no longer warn that they don't support resizing.
 
 ## [0.1.1] - 2026-10-19
 

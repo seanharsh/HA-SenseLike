@@ -764,6 +764,10 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
     return 5;
   }
 
+  getGridOptions() {
+    return { columns: 12, min_columns: 6, rows: 'auto' };
+  }
+
   _build() {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = `

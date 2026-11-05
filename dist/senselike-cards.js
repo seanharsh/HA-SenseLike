@@ -768,6 +768,10 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
     return 5;
   }
 
+  getGridOptions() {
+    return { columns: 12, min_columns: 6, rows: 'auto' };
+  }
+
   _build() {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = `
@@ -1255,6 +1259,10 @@ class SenseLikePowerMeterCard extends HTMLElement {
     return 4;
   }
 
+  getGridOptions() {
+    return { columns: 12, min_columns: 6, rows: 'auto' };
+  }
+
   _build() {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     this.shadowRoot.innerHTML = `
@@ -1531,6 +1539,10 @@ class SenseLikeGoalsCard extends HTMLElement {
 
   getCardSize() {
     return Math.max(3, Math.ceil(this._config.goals.length * 1.2) + 1);
+  }
+
+  getGridOptions() {
+    return { columns: 12, min_columns: 6, rows: 'auto' };
   }
 
   _esc(s) {
@@ -1859,6 +1871,10 @@ class SenseLikeUsageTrendCard extends HTMLElement {
 
   getCardSize() {
     return 4;
+  }
+
+  getGridOptions() {
+    return { columns: 12, min_columns: 6, rows: 'auto' };
   }
 
   _build() {
@@ -2226,6 +2242,10 @@ class SenseLikeTimelineCard extends HTMLElement {
 
   getCardSize() {
     return 4;
+  }
+
+  getGridOptions() {
+    return { columns: 12, min_columns: 6, rows: 'auto' };
   }
 
   _esc(s) {

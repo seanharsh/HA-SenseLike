@@ -1,6 +1,8 @@
 # SenseLike Cards for Home Assistant
 
-Lovelace dashboard cards styled after the Sense energy monitoring app.
+Lovelace dashboard cards styled after the Sense energy monitoring app. Track home energy use,
+live power (W), kWh usage and cost, device-level consumption, usage goals and on/off activity,
+all on your Home Assistant dashboard, from the Sense integration or any power/energy sensor.
 
 - **Theme-aware** — uses your Home Assistant theme colors (customizable per-card)
 - **Works with anything** — Sense integration, MQTT sensors, utility meters, or any Home Assistant entity
@@ -33,28 +35,46 @@ Chronological event log showing device on/off events throughout the day. Underst
 
 ![Timeline Card](docs/card-5-timeline.png)
 
+## Finding the cards
+
+| You're looking for | Search for | Card |
+|---|---|---|
+| What's using power right now, per device | "SenseLike Device Bubbles", "bubbles" | `senselike-device-bubbles-card` |
+| Live watts and cost over time | "SenseLike Power Meter", "meter" | `senselike-power-meter-card` |
+| Daily/monthly energy targets | "SenseLike Goals", "goals" | `senselike-goals-card` |
+| This month vs. last month | "SenseLike Usage Trend", "usage" | `senselike-usage-trend-card` |
+| Device on/off history | "SenseLike Timeline", "timeline" | `senselike-timeline-card` |
+
+- **In HACS:** search for "SenseLike".
+- **In the dashboard editor:** **Edit dashboard → Add card → By card**, then type "SenseLike"
+  in the **Search cards** box. The cards appear under custom/community cards with a live
+  preview and a visual editor, so no YAML is needed.
+
 ## Installation
 
 ### Via HACS (recommended)
 
-1. In Home Assistant, go to **Settings → Devices & Services → HACS**
-2. Click **Explore & Download Repositories**
-3. Search for "SenseLike" and install
-4. Restart Home Assistant
+1. Open **HACS** from the Home Assistant sidebar
+2. Search for "SenseLike" and select **SenseLike Cards**, then **Download**
+   - If it doesn't show up in search, open the ⋮ menu → **Custom repositories**, add
+     `https://github.com/seanharsh/HA-SenseLike` with type **Dashboard**, then search again
+3. Restart Home Assistant (or reload the browser) so the dashboard resource is picked up
+4. Add a card: **Edit dashboard → Add card → By card → search "SenseLike"**
 
 ### Manual
 
 1. Copy `dist/senselike-cards.js` into your Home Assistant `config/www/` directory
 2. In **Settings → Dashboards → Resources**, add as **JavaScript Module**:
    - `/local/senselike-cards.js`
-3. Add cards to your dashboard in YAML mode (see `example-dashboard.yaml`)
+3. Add cards from **Edit dashboard → Add card → By card → search "SenseLike"**, or in YAML
+   (see `example-dashboard.yaml`)
 
 ## Requirements
 
 - **Home Assistant** 2024.6.0+
 - **Browser/WebView** supporting CSS `color-mix()` (Chrome/Edge 111+, Safari 16.2+, all current HA apps)
 - **For trend/meter cards**: entities with [long-term statistics](https://www.home-assistant.io/docs/energy/statistics/) enabled
-- **For device timeline**: [Logbook API](https://www.home-assistant.io/docs/frontend/custom-card/) access
+- **For device timeline**: [Logbook](https://www.home-assistant.io/integrations/logbook/) integration enabled
 
 ## Quick Config Examples
 

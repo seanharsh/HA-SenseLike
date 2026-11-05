@@ -62,9 +62,9 @@ class SenseLikePowerMeterCard extends HTMLElement {
         .chart-wrap { position:relative; }
         svg { width:100%; height:190px; display:block; overflow:visible; }
         .empty { font-size: calc(13px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); padding: 40px 0; text-align:center; }
-        .date-row { display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
-        .date { font-size: calc(12px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); }
-        .tabs { display:flex; gap:4px; }
+        .date-row { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 8px; margin-top:8px; }
+        .date { font-size: calc(12px * var(--ha-font-size-scale, 1)); color: var(--secondary-text-color); white-space:nowrap; }
+        .tabs { display:flex; gap:4px; margin-left:auto; }
         .tab {
           border:none; background:transparent; font-size: calc(12px * var(--ha-font-size-scale, 1)); font-weight:700; letter-spacing:.03em;
           color: var(--secondary-text-color); padding:4px 8px; border-radius:6px; cursor:pointer;

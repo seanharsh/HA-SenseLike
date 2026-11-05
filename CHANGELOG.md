@@ -6,6 +6,9 @@
 - Cards now show a live preview in the Lovelace card picker.
 - Cards define default grid sizing, so sections dashboards no longer warn that they don't support resizing.
 
+### Fixed
+- Power meter card: date and range tabs no longer wrap or overflow when the card is narrow.
+
 ## [0.1.1] - 2026-10-19
 
 ### Fixed

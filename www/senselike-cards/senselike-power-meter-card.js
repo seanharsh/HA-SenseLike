@@ -273,4 +273,5 @@ window.customCards.push({
   type: 'senselike-power-meter-card',
   name: 'SenseLike Power Meter',
   description: 'Live power over time with MIN/HR/DAY/WK/MO range tabs, Sense-app style.',
+  preview: true,
 });

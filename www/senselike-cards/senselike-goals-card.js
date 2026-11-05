@@ -318,4 +318,5 @@ window.customCards.push({
   type: 'senselike-goals-card',
   name: 'SenseLike Goals',
   description: 'Usage goal progress bars with a "NOW" time marker and trend projection, Sense-app style.',
+  preview: true,
 });

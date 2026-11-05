@@ -308,4 +308,5 @@ window.customCards.push({
   type: 'senselike-usage-trend-card',
   name: 'SenseLike Usage Trend',
   description: 'Monthly cumulative usage/cost vs. last month, Sense-app style.',
+  preview: true,
 });

@@ -1204,6 +1204,7 @@ window.customCards.push({
   type: 'senselike-device-bubbles-card',
   name: 'SenseLike Device Bubbles',
   description: 'Circle-packed device power bubble chart, Sense-app style.',
+  preview: true,
 });
 
 }
@@ -1485,6 +1486,7 @@ window.customCards.push({
   type: 'senselike-power-meter-card',
   name: 'SenseLike Power Meter',
   description: 'Live power over time with MIN/HR/DAY/WK/MO range tabs, Sense-app style.',
+  preview: true,
 });
 
 }
@@ -1811,6 +1813,7 @@ window.customCards.push({
   type: 'senselike-goals-card',
   name: 'SenseLike Goals',
   description: 'Usage goal progress bars with a "NOW" time marker and trend projection, Sense-app style.',
+  preview: true,
 });
 
 }
@@ -2127,6 +2130,7 @@ window.customCards.push({
   type: 'senselike-usage-trend-card',
   name: 'SenseLike Usage Trend',
   description: 'Monthly cumulative usage/cost vs. last month, Sense-app style.',
+  preview: true,
 });
 
 }
@@ -2546,6 +2550,7 @@ window.customCards.push({
   type: 'senselike-timeline-card',
   name: 'SenseLike Timeline',
   description: 'Today\'s device on/off event timeline, Sense-app style.',
+  preview: true,
 });
 
 }

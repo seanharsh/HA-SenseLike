@@ -411,4 +411,5 @@ window.customCards.push({
   type: 'senselike-timeline-card',
   name: 'SenseLike Timeline',
   description: 'Today\'s device on/off event timeline, Sense-app style.',
+  preview: true,
 });

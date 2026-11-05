@@ -1200,4 +1200,5 @@ window.customCards.push({
   type: 'senselike-device-bubbles-card',
   name: 'SenseLike Device Bubbles',
   description: 'Circle-packed device power bubble chart, Sense-app style.',
+  preview: true,
 });

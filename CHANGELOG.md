@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Cards now show a live preview in the Lovelace card picker.
+
 ## [0.1.1] - 2026-10-19
 
 ### Fixed

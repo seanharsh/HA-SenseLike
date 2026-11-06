@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Usage trend card: "% more/less than last month" now compares against last month at the same day and hour, instead of against that whole day (it read too low, especially early in the month).
+
 ## [0.2.0] - 2026-11-04
 
 ### Added

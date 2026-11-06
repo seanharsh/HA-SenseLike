@@ -136,6 +136,28 @@ class SenseLikeUsageTrendCard extends HTMLElement {
       this._daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       this._monthStart = startThis;
       this._error = rows.length === 0 ? 'no-stats' : null;
+
+      // Like-for-like comparison point: last month at the same day-of-month and
+      // hour as the newest completed statistics hour (all of last month if it
+      // was shorter). Comparing this month's partial day against last month's
+      // whole day made the "% more/less" read low all day long.
+      this._prevAtSamePoint = null;
+      if (prevRows.length) {
+        const prevDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+        const cut = now.getDate() > prevDays
+          ? endPrev
+          : new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), now.getHours());
+        const hourly = await this._hass.callWS({
+          type: 'recorder/statistics_during_period',
+          start_time: startPrev.toISOString(),
+          end_time: cut.toISOString(),
+          statistic_ids: [entity],
+          period: 'hour',
+          types: ['change', 'sum'],
+        });
+        const hRows = (hourly && hourly[entity]) || [];
+        this._prevAtSamePoint = hRows.length ? this._cumulative(hRows).pop() : 0;
+      }
     } catch (e) {
       this._error = 'no-stats';
     }
@@ -180,7 +202,7 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     const cur = this._curSeries;
     const prev = this._prevSeries;
     const curTotal = cur[cur.length - 1] ?? 0;
-    const prevAtSameDay = prev[cur.length - 1] ?? prev[prev.length - 1] ?? null;
+    const prevAtSameDay = this._prevAtSamePoint ?? prev[cur.length - 1] ?? prev[prev.length - 1] ?? null;
     const prevTotal = prev[prev.length - 1] ?? 0;
 
     curAmtEl.textContent = this._fmt(curTotal);
@@ -214,7 +236,7 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     const todayIdx = cur.length - 1;
     const todayX = xFor(todayIdx);
     const curDotY = cur.length ? yFor(cur[cur.length - 1]) : null;
-    const prevAtToday = prev[todayIdx];
+    const prevAtToday = this._prevAtSamePoint ?? prev[todayIdx];
     const prevDotY = prevAtToday != null ? yFor(prevAtToday) : null;
 
     const startLabel = this._monthStart

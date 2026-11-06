@@ -111,10 +111,23 @@ class SenseLikePowerMeterCard extends HTMLElement {
     }
     const w = Number(st.state);
     wattsEl.textContent = `${Math.round(w).toLocaleString()}W`;
-    let price = this._config.price_per_kwh;
-    if (this._config.price_entity && this._hass.states[this._config.price_entity]) {
-      const p = Number(this._hass.states[this._config.price_entity].state);
-      if (!Number.isNaN(p)) price = p;
+    const priceOf = (fixed, entity) => {
+      let p = fixed != null && fixed !== '' ? Number(fixed) : null;
+      if (entity && this._hass.states[entity]) {
+        const v = Number(this._hass.states[entity].state);
+        if (!Number.isNaN(v)) p = v;
+      }
+      return p;
+    };
+    // Negative power on a grid/net meter means exporting: that energy earns
+    // the export (feed-in) rate, which is rarely the import price. Without an
+    // export price configured, show nothing rather than a wrong figure.
+    const price = w < 0
+      ? priceOf(this._config.export_price_per_kwh, this._config.export_price_entity)
+      : priceOf(this._config.price_per_kwh, this._config.price_entity);
+    if (price == null || Number.isNaN(price)) {
+      costEl.textContent = '';
+      return;
     }
     const perHr = (w / 1000) * price;
     // Sub-dollar rates read better as cents (e.g. "72¢/hr"); once the hourly
@@ -123,7 +136,9 @@ class SenseLikePowerMeterCard extends HTMLElement {
     // already-rounded cents value so a rate like $0.996/hr (which rounds to
     // 100¢) doesn't display as "100¢/hr" instead of "$1.00/hr".
     const cents = Math.round(perHr * 100);
-    costEl.textContent = cents >= 100 ? `$${(cents / 100).toFixed(2)}/hr` : `${cents}¢/hr`;
+    const sign = cents < 0 ? '-' : '';
+    const abs = Math.abs(cents);
+    costEl.textContent = abs >= 100 ? `${sign}$${(abs / 100).toFixed(2)}/hr` : `${sign}${abs}¢/hr`;
   }
 
   async _loadData() {
@@ -224,6 +239,8 @@ const SENSELIKE_METER_SCHEMA = [
   { name: 'entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'power' }] } } },
   { name: 'price_per_kwh', selector: { number: { mode: 'box', step: 0.01, min: 0 } } },
   { name: 'price_entity', selector: { entity: { filter: [{ domain: 'sensor' }] } } },
+  { name: 'export_price_per_kwh', selector: { number: { mode: 'box', step: 0.01 } } },
+  { name: 'export_price_entity', selector: { entity: { filter: [{ domain: 'sensor' }] } } },
   { name: 'accent_color', selector: { text: {} } },
   { name: 'muted_color', selector: { text: {} } },
 ];
@@ -232,6 +249,8 @@ const SENSELIKE_METER_LABELS = {
   entity: 'Entity (instantaneous power, W)',
   price_per_kwh: 'Price per kWh',
   price_entity: 'Price entity (optional, overrides fixed price)',
+  export_price_per_kwh: 'Export (feed-in) price per kWh, used while power is negative',
+  export_price_entity: 'Export price entity (optional, overrides fixed export price)',
   accent_color: 'Accent color (CSS value)',
   muted_color: 'Muted color (CSS value)',
 };

@@ -80,3 +80,6 @@ views:
         entity: sensor.house_power
         price_per_kwh: 0.14
         # price_entity: sensor.electricity_price   # optional, overrides price_per_kwh
+        # On a grid/net-meter entity (negative while exporting), the export rate applies:
+        # export_price_per_kwh: 0.05
+        # export_price_entity: sensor.electricity_export_price

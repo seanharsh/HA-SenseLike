@@ -201,7 +201,17 @@ class SenseLikePowerMeterCard extends HTMLElement {
     const linePath = `M${linePts.join(' L')}`;
     const areaPath = `M${xFor(series[0].t.getTime()).toFixed(1)},${H - pad} L${linePts.join(' L')} L${xFor(series[series.length - 1].t.getTime()).toFixed(1)},${H - pad} Z`;
 
-    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    // Time-weighted mean: each sample holds until the next one (the last until
+    // the end of the range). Sensors that only report on change produce
+    // irregular samples, and a plain average of those over-weights busy spells.
+    let wSum = 0, wTot = 0;
+    series.forEach((p, i) => {
+      const until = i + 1 < series.length ? series[i + 1].t.getTime() : t1;
+      const dt = Math.max(0, until - p.t.getTime());
+      wSum += p.v * dt;
+      wTot += dt;
+    });
+    const mean = wTot > 0 ? wSum / wTot : vals.reduce((a, b) => a + b, 0) / vals.length;
     let maxIdx = 0, minIdx = 0;
     series.forEach((p, i) => {
       if (p.v > series[maxIdx].v) maxIdx = i;

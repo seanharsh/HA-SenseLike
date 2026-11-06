@@ -95,17 +95,23 @@ class SenseLikeGoalsCard extends HTMLElement {
   }
 
   _periodFraction(period) {
+    // Elapsed share of the real period, from its actual start/end instants, so
+    // 23/25-hour DST days (and the months/weeks containing them) come out right.
     const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    let start, end;
     if (period === 'day') {
-      return (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400;
+      start = new Date(y, m, d);
+      end = new Date(y, m, d + 1);
+    } else if (period === 'week') {
+      const mon = d - ((now.getDay() + 6) % 7); // Monday
+      start = new Date(y, m, mon);
+      end = new Date(y, m, mon + 7);
+    } else {
+      start = new Date(y, m, 1);
+      end = new Date(y, m + 1, 1);
     }
-    if (period === 'week') {
-      const day = (now.getDay() + 6) % 7; // Mon=0
-      return (day * 86400 + now.getHours() * 3600 + now.getMinutes() * 60) / (7 * 86400);
-    }
-    // month (default)
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    return (now.getDate() - 1 + now.getHours() / 24) / daysInMonth;
+    return (now - start) / (end - start);
   }
 
   _render() {

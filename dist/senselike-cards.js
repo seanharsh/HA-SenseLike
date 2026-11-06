@@ -908,8 +908,10 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
         if (!Number.isNaN(v)) todayKwh += v;
       });
 
-      if (!this._config.cost_entity && rate != null) {
-        this._animateCost(todayKwh * rate);
+      if (!this._config.cost_entity) {
+        const priced = this._config.price_entity ? await this._costFromPrice(hass, ids, todayStart, now, todayKwh) : null;
+        if (priced != null) this._animateCost(priced);
+        else if (rate != null) this._animateCost(todayKwh * rate);
       }
 
       if (!this._config.compare_text) {
@@ -963,6 +965,65 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
       // Leave whatever was last successfully computed (or the empty default)
       // rather than showing an error in place of the headline.
     }
+  }
+
+  // Today's cost under a tariff that changes during the day (time-of-use,
+  // dynamic spot, tiered): each completed hour's kWh times that hour's
+  // time-weighted average price, plus the current partial hour at the price
+  // since then. A fixed `rate` can only be right for a flat tariff. The price
+  // comes from the entity's raw history, so it works without statistics.
+  async _costFromPrice(hass, ids, todayStart, now, todayKwh) {
+    const pid = this._config.price_entity;
+    const t0 = todayStart.getTime(), tNow = now.getTime();
+    const [stats, hist] = await Promise.all([
+      hass.callWS({
+        type: 'recorder/statistics_during_period',
+        start_time: new Date(t0 - 3600000).toISOString(),
+        end_time: now.toISOString(),
+        statistic_ids: ids,
+        period: 'hour',
+        types: ['sum'],
+      }),
+      hass.callApi('GET', `history/period/${todayStart.toISOString()}?filter_entity_id=${pid}&end_time=${now.toISOString()}&minimal_response&no_attributes`),
+    ]);
+    const steps = ((hist && hist[0]) || [])
+      .map((r) => ({ t: new Date(r.last_changed).getTime(), v: Number(r.state) }))
+      .filter((p) => !Number.isNaN(p.v) && !Number.isNaN(p.t))
+      .sort((a, b) => a.t - b.t);
+    const live = Number(hass.states[pid]?.state);
+    if (!steps.length && Number.isNaN(live)) return null;
+    // Time-weighted average of the step-function price over [a, b).
+    const avg = (a, b) => {
+      let cur = steps.length ? steps[0].v : live;
+      steps.forEach((s) => { if (s.t <= a) cur = s.v; });
+      let t = a, acc = 0;
+      for (const s of steps) {
+        if (s.t <= a) continue;
+        if (s.t >= b) break;
+        acc += cur * (s.t - t);
+        t = s.t;
+        cur = s.v;
+      }
+      acc += cur * (b - t);
+      return b > a ? acc / (b - a) : cur;
+    };
+    const perHour = new Map();
+    ids.forEach((id) => {
+      const rows = (stats && stats[id]) || [];
+      for (let i = 1; i < rows.length; i++) {
+        const st = new Date(rows[i].start).getTime();
+        if (st < t0) continue;
+        perHour.set(st, (perHour.get(st) || 0) + Math.max(0, rows[i].sum - rows[i - 1].sum));
+      }
+    });
+    let cost = 0, done = 0, lastEnd = t0;
+    perHour.forEach((kwh, st) => {
+      cost += kwh * avg(st, st + 3600000);
+      done += kwh;
+      lastEnd = Math.max(lastEnd, st + 3600000);
+    });
+    cost += Math.max(0, todayKwh - done) * avg(lastEnd, Math.max(lastEnd + 1, tNow));
+    return cost;
   }
 
   _renderBubbles() {
@@ -1053,6 +1114,7 @@ const SENSELIKE_BUBBLES_SCHEMA = [
   { name: 'cost_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'monetary' }] } } },
   { name: 'current_power_entity', selector: { entity: { filter: [{ domain: 'sensor', device_class: 'power' }] } } },
   { name: 'compare_text', selector: { text: {} } },
+  { name: 'price_entity', selector: { entity: { filter: [{ domain: 'sensor' }] } } },
   { name: 'rate', selector: { number: { mode: 'box', step: 0.001 } } },
   { name: 'accent_color', selector: { text: {} } },
   { name: 'muted_color', selector: { text: {} } },
@@ -1065,7 +1127,8 @@ const SENSELIKE_BUBBLES_LABELS = {
   cost_entity: 'Cost entity (optional)',
   current_power_entity: 'Live power entity (optional)',
   compare_text: 'Compare text (optional)',
-  rate: 'Electricity rate in $/kWh (optional — falls back to utility sensors)',
+  price_entity: 'Price entity in $/kWh (optional — for time-of-use, dynamic or tiered tariffs)',
+  rate: 'Electricity rate in $/kWh (optional — flat tariffs only; falls back to utility sensors)',
   accent_color: 'Accent color (CSS value)',
   muted_color: 'Muted color (CSS value)',
   other_color: 'Secondary bubble color (CSS value)',

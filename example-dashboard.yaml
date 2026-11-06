@@ -9,6 +9,9 @@ views:
       - type: custom:senselike-device-bubbles-card
         title: Now
         cost_entity: sensor.energy_cost_today
+        # Without a cost entity: price_entity (changing tariffs) or rate (flat $/kWh)
+        # price_entity: sensor.electricity_price
+        # rate: 0.14
         current_power_entity: sensor.house_power
         compare_text: This is a bit more than on recent Tuesdays.
         show_timeline: true

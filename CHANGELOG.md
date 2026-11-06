@@ -5,6 +5,7 @@
 ### Fixed
 - Usage trend card: "% more/less than last month" now compares against last month at the same day and hour, instead of against that whole day (it read too low, especially early in the month).
 - Usage trend card: days where a cost or net-energy statistic went down (negative prices, export credits) are no longer counted as zero, so month totals match; the chart scales below zero when needed.
+- Device bubbles card: new `price_entity` option prices each hour of today at that hour's actual price, so the headline cost is right for time-of-use, dynamic and tiered tariffs (a fixed `rate` is only correct for a flat tariff).
 
 ## [0.2.0] - 2026-11-04
 

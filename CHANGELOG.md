@@ -9,6 +9,7 @@
 - Power meter card: while power is negative (exporting to the grid), the cost rate uses the new `export_price_per_kwh` / `export_price_entity` instead of the import price, and is hidden if no export price is set. Negative amounts show as `-12¢/hr` / `-$1.04/hr`.
 - Power meter card: the +/- badges are measured against the time-weighted average power, so sensors that only report on change no longer skew them.
 - Goals card: the NOW marker and "trending to" projection use the real length of the day, week or month, so DST days (23/25 h) and the months around them are no longer off.
+- Device bubbles card: the "more/less than on recent <weekday>s" line compares against the same point in the day on those days, instead of counting their whole current hour.
 
 ## [0.2.0] - 2026-11-04
 

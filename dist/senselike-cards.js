@@ -946,8 +946,15 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
               period: 'hour',
               types: ['sum'],
             });
+            // Same point in the day: whole hours before this one, plus only the
+            // elapsed share of the current hour (counting all of it made today
+            // look lower than recent days).
+            const hourFrac = (now.getMinutes() * 60 + now.getSeconds()) / 3600;
             ids.forEach((id) => {
-              toHourlyKwh(stats[id]).forEach((v, h) => { if (h <= currentHour) pastKwh += v; });
+              toHourlyKwh(stats[id]).forEach((v, h) => {
+                if (h < currentHour) pastKwh += v;
+                else if (h === currentHour) pastKwh += v * hourFrac;
+              });
             });
           }
           const pastAvg = pastKwh / pastDays.length;

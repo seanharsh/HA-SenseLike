@@ -174,7 +174,10 @@ class SenseLikeUsageTrendCard extends HTMLElement {
         delta = prevAbs == null ? 0 : r.sum - prevAbs;
         prevAbs = r.sum;
       }
-      sum += Math.max(delta || 0, 0);
+      // No clamping: a cost/net-energy statistic can legitimately go down
+      // (negative spot prices, export credits). `change`/`sum` already absorb
+      // counter resets, so a negative delta here is real.
+      sum += delta || 0;
       return sum;
     });
   }
@@ -226,8 +229,10 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     const W = 300, H = 110, pad = 4;
     const days = this._daysInMonth || Math.max(cur.length, prev.length, 1);
     const maxVal = Math.max(1, ...cur, ...prev) * 1.12;
+    // A net-credit month runs below zero; shift the baseline so it stays on the chart.
+    const minVal = Math.min(0, ...cur, ...prev) * 1.12;
     const xFor = (i) => pad + (i / Math.max(days - 1, 1)) * (W - pad * 2);
-    const yFor = (v) => H - pad - (v / maxVal) * (H - pad * 2);
+    const yFor = (v) => H - pad - ((v - minVal) / (maxVal - minVal)) * (H - pad * 2);
 
     const path = (series) => series.map((v, i) => `${i === 0 ? 'M' : 'L'}${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`).join(' ');
 

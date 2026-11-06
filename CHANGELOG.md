@@ -10,6 +10,7 @@
 - Power meter card: the +/- badges are measured against the time-weighted average power, so sensors that only report on change no longer skew them.
 - Goals card: the NOW marker and "trending to" projection use the real length of the day, week or month, so DST days (23/25 h) and the months around them are no longer off.
 - Device bubbles card: the "more/less than on recent <weekday>s" line compares against the same point in the day on those days, instead of counting their whole current hour.
+- Power meter card: the WK and MO ranges start on a Monday / the 1st of a month, so the first point is a whole week or month instead of a partial one.
 
 ## [0.2.0] - 2026-11-04
 

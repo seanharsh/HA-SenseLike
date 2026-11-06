@@ -1432,7 +1432,14 @@ class SenseLikePowerMeterCard extends HTMLElement {
     if (!this._hass) return;
     const rangeDef = RANGES[this._range];
     const end = new Date();
-    const start = new Date(end.getTime() - rangeDef.ms);
+    let start = new Date(end.getTime() - rangeDef.ms);
+    // Week/month buckets: start on a bucket boundary so the first point is a
+    // whole week/month, not a partial one plotted like a full one.
+    if (rangeDef.period === 'month') {
+      start = new Date(end.getFullYear(), end.getMonth() - 12, 1);
+    } else if (rangeDef.period === 'week') {
+      start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - ((end.getDay() + 6) % 7) - 25 * 7);
+    }
     let series = [];
     try {
       if (rangeDef.mode === 'raw') {

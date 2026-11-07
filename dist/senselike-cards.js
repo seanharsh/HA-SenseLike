@@ -2309,9 +2309,14 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     curAmtEl.textContent = this._fmt(curTotal);
     prevAmtEl.textContent = this._fmt(prevTotal);
 
+    // Only state a percentage against a meaningful base: last month's value at
+    // this point must be positive and at least 2% of last month's total, and
+    // the result sane. Early on the 1st, or for a net bill hovering near zero,
+    // a "% more" against a few cents is noise ("67587% more").
     let pct = null;
-    if (prevAtSameDay != null && prevAtSameDay > 0) {
-      pct = Math.round(((curTotal - prevAtSameDay) / prevAtSameDay) * 100);
+    if (prevAtSameDay != null && prevAtSameDay > 0 && prevAtSameDay >= Math.abs(prevTotal) * 0.02) {
+      const p = Math.round(((curTotal - prevAtSameDay) / prevAtSameDay) * 100);
+      if (Math.abs(p) <= 999) pct = p;
     }
     if (pct == null) {
       statementEl.textContent = `You've used ${this._fmt(curTotal)} so far this month.`;

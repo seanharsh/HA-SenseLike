@@ -14,6 +14,7 @@
 - All cards: "today", "this month", hour and week boundaries follow Home Assistant's time zone (the one its statistics use) instead of the browser's, so a browser in another time zone no longer shows wrong totals, goals or comparisons. The timeline still shows times in the viewer's zone unless their profile uses server time.
 - Usage trend and device bubbles cards: a recorder statistics glitch (the stored sum restarting while the sensor kept counting, e.g. after a restart) no longer shows as a huge negative month or a missing hour; the sensor's own state movement is used for that hour. Usage trend now reads hourly statistics for this.
 - Usage trend card: no "% more/less" against a near-zero base (early on the 1st, or a net bill hovering around zero); it says how much has been used so far instead of e.g. "67587% more".
+- Power meter card: if the configured price entity is unavailable, no cost rate is shown, instead of a made-up one from the default fixed price.
 
 ## [0.2.0] - 2026-11-04
 

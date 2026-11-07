@@ -142,13 +142,16 @@ class SenseLikePowerMeterCard extends HTMLElement {
     }
     const w = Number(st.state);
     wattsEl.textContent = `${Math.round(w).toLocaleString()}W`;
+    // A configured price entity wins; if it is unavailable/unknown the rate is
+    // unknown too, so show nothing rather than falling back to the fixed price
+    // (which may just be the 0.14 default).
     const priceOf = (fixed, entity) => {
-      let p = fixed != null && fixed !== '' ? Number(fixed) : null;
-      if (entity && this._hass.states[entity]) {
-        const v = Number(this._hass.states[entity].state);
-        if (!Number.isNaN(v)) p = v;
+      if (entity) {
+        const st = this._hass.states[entity];
+        const v = st && st.state !== '' ? Number(st.state) : NaN;
+        return Number.isNaN(v) ? null : v;
       }
-      return p;
+      return fixed != null && fixed !== '' ? Number(fixed) : null;
     };
     // Negative power on a grid/net meter means exporting: that energy earns
     // the export (feed-in) rate, which is rarely the import price. Without an

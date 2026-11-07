@@ -146,7 +146,9 @@ function statDelta(prev, cur) {
   const d = cur.sum - prev.sum;
   if (d >= 0 || cur.state == null || prev.state == null) return d;
   const s = cur.state - prev.state;
-  return s >= 0 ? s : d;
+  // State dropped too: the meter itself reset (e.g. a daily sensor at midnight)
+  // in the same hour the sum restarted, so this hour's energy is the new state.
+  return s >= 0 ? s : Math.max(0, cur.state);
 }
 
 function toHourlyKwh(arr, tz) {

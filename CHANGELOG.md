@@ -15,6 +15,7 @@
 - Usage trend and device bubbles cards: a recorder statistics glitch (the stored sum restarting while the sensor kept counting, e.g. after a restart) no longer shows as a huge negative month or a missing hour; the sensor's own state movement is used for that hour. Usage trend now reads hourly statistics for this.
 - Usage trend card: no "% more/less" against a near-zero base (early on the 1st, or a net bill hovering around zero); it says how much has been used so far instead of e.g. "67587% more".
 - Power meter card: if the configured price entity is unavailable, no cost rate is shown, instead of a made-up one from the default fixed price.
+- Device bubbles card: an hour where the recorder's sum restarted at the same moment a daily energy sensor reset (midnight) is no longer dropped from the hourly split used for pricing and comparisons.
 
 ## [0.2.0] - 2026-11-04
 

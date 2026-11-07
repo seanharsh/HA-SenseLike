@@ -155,40 +155,48 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     this._tz = tz;
     const endPrev = startThis;
     try {
+      // Hourly rows (one lead-in hour before last month) rather than daily
+      // ones: per-hour changes can be sanity-checked against the sensor's own
+      // state, which daily rows of a midnight-resetting sensor can't.
       const res = await this._hass.callWS({
         type: 'recorder/statistics_during_period',
-        start_time: startPrev.toISOString(),
+        start_time: new Date(startPrev.getTime() - 3600000).toISOString(),
         end_time: now.toISOString(),
         statistic_ids: [entity],
-        period: 'day',
+        period: 'hour',
+        types: ['change', 'sum', 'state'],
       });
       const rows = (res && res[entity]) || [];
-      const curRows = rows.filter((r) => new Date(r.start) >= startThis);
-      const prevRows = rows.filter((r) => new Date(r.start) >= startPrev && new Date(r.start) < endPrev);
-      this._curSeries = this._cumulative(curRows);
-      this._prevSeries = this._cumulative(prevRows);
+      const sc = this._hass.states[entity]?.attributes?.state_class;
+      const deltas = this._hourDeltas(rows, sc === 'total_increasing')
+        .filter((h) => h.t >= startPrev.getTime());
+
+      // Cumulative-by-day series, indexed by day of month (gaps carry forward).
+      const prevDays = new Date(Date.UTC(nowP.y, nowP.mo, 0)).getUTCDate();
+      const prevDaily = new Array(prevDays).fill(0);
+      const curDaily = new Array(nowP.d).fill(0);
+      deltas.forEach((h) => {
+        const p = slParts(new Date(h.t), tz);
+        if (h.t < startThis.getTime()) prevDaily[p.d - 1] += h.d;
+        else if (p.d <= nowP.d) curDaily[p.d - 1] += h.d;
+      });
+      const running = (a) => { let acc = 0; return a.map((v) => (acc += v)); };
+      const hasCur = deltas.some((h) => h.t >= startThis.getTime());
+      const hasPrev = deltas.some((h) => h.t < startThis.getTime());
+      this._curSeries = hasCur ? running(curDaily) : [];
+      this._prevSeries = hasPrev ? running(prevDaily) : [];
       this._daysInMonth = new Date(Date.UTC(nowP.y, nowP.mo + 1, 0)).getUTCDate();
       this._monthStart = startThis;
       this._error = rows.length === 0 ? 'no-stats' : null;
 
       // Like-for-like comparison point: last month at the same day-of-month and
-      // hour as the newest completed statistics hour (all of last month if it
-      // was shorter). Comparing this month's partial day against last month's
-      // whole day made the "% more/less" read low all day long.
+      // hour as now (all of last month if it was shorter). Comparing this
+      // month's partial day against last month's whole day made the
+      // "% more/less" read low all day long.
       this._prevAtSamePoint = null;
-      if (prevRows.length) {
-        const prevDays = new Date(Date.UTC(nowP.y, nowP.mo, 0)).getUTCDate();
+      if (hasPrev) {
         const cut = nowP.d > prevDays ? endPrev : slDate(tz, nowP.y, nowP.mo - 1, nowP.d, nowP.h);
-        const hourly = await this._hass.callWS({
-          type: 'recorder/statistics_during_period',
-          start_time: startPrev.toISOString(),
-          end_time: cut.toISOString(),
-          statistic_ids: [entity],
-          period: 'hour',
-          types: ['change', 'sum'],
-        });
-        const hRows = (hourly && hourly[entity]) || [];
-        this._prevAtSamePoint = hRows.length ? this._cumulative(hRows).pop() : 0;
+        this._prevAtSamePoint = deltas.filter((h) => h.t < cut.getTime()).reduce((a, h) => a + h.d, 0);
       }
     } catch (e) {
       this._error = 'no-stats';
@@ -196,21 +204,25 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     this._render();
   }
 
-  _cumulative(rows) {
-    let sum = 0;
-    let prevAbs = null;
-    return rows.map((r) => {
-      let delta = 0;
-      if (r.change != null) delta = r.change;
-      else if (r.sum != null) {
-        delta = prevAbs == null ? 0 : r.sum - prevAbs;
-        prevAbs = r.sum;
+  // Per-hour change of a statistic. `change`/`sum` normally absorb meter
+  // resets, and a cost or net-energy statistic can genuinely go down (negative
+  // prices, export credits) — its state then drops by the same amount. When
+  // the sum drops, the sensor's own state movement is trusted instead: equal
+  // for a real decrease, and right when the recorder's sum glitched (restarted)
+  // while the sensor kept counting. A total_increasing sensor never really
+  // goes down: a drop there is a meter reset (count the new reading).
+  _hourDeltas(rows, increasing) {
+    return rows.map((cur, i) => {
+      const prev = rows[i - 1];
+      let d = cur.change != null ? cur.change
+        : (prev && cur.sum != null && prev.sum != null ? cur.sum - prev.sum : 0);
+      if (d < 0) {
+        const s = prev && cur.state != null && prev.state != null ? cur.state - prev.state : null;
+        if (s == null) d = increasing ? 0 : d;
+        else if (s >= 0) d = s;                          // sum glitch, sensor kept counting
+        else d = increasing ? Math.max(0, cur.state) : s; // meter reset / real decrease
       }
-      // No clamping: a cost/net-energy statistic can legitimately go down
-      // (negative spot prices, export credits). `change`/`sum` already absorb
-      // counter resets, so a negative delta here is real.
-      sum += delta || 0;
-      return sum;
+      return { t: new Date(cur.start).getTime(), d: d || 0 };
     });
   }
 

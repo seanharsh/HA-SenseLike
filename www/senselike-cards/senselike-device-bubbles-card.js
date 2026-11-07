@@ -138,13 +138,23 @@ function resolveEnergyEntity(hass, powerEntity) {
 // before the first hour they care about (query start_time - 1h) — without a
 // real prior sum to diff against, the first hour's usage is unknowable and
 // would otherwise have to be silently dropped rather than guessed at.
+// Change between two consecutive statistics rows. `sum` normally absorbs
+// meter resets, but a recorder glitch (the sum restarting while the sensor
+// kept counting) shows up as a huge negative jump; when the sensor's own
+// state still moved up, that movement is the real change.
+function statDelta(prev, cur) {
+  const d = cur.sum - prev.sum;
+  if (d >= 0 || cur.state == null || prev.state == null) return d;
+  const s = cur.state - prev.state;
+  return s >= 0 ? s : d;
+}
+
 function toHourlyKwh(arr, tz) {
   const hours = new Array(24).fill(0);
   if (!arr || arr.length < 2) return hours;
   for (let i = 1; i < arr.length; i++) {
     const hourIdx = tz ? slParts(new Date(arr[i].start), tz).h : new Date(arr[i].start).getHours();
-    const delta = arr[i].sum - arr[i - 1].sum;
-    hours[hourIdx] = Math.max(0, delta);
+    hours[hourIdx] = Math.max(0, statDelta(arr[i - 1], arr[i]));
   }
   return hours;
 }
@@ -392,7 +402,7 @@ class SenseLikeCostDialog extends HTMLElement {
         end_time: now.toISOString(),
         statistic_ids: ids,
         period: 'hour',
-        types: ['sum'],
+        types: ['sum', 'state'],
       });
 
       // Probe how far back history actually goes so "Last N <weekday>s" reflects
@@ -424,7 +434,7 @@ class SenseLikeCostDialog extends HTMLElement {
           end_time: dayEnd.toISOString(),
           statistic_ids: ids,
           period: 'hour',
-          types: ['sum'],
+          types: ['sum', 'state'],
         });
         pastStatsByDay.push(stats);
       }
@@ -972,7 +982,7 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
               end_time: dayEnd.toISOString(),
               statistic_ids: ids,
               period: 'hour',
-              types: ['sum'],
+              types: ['sum', 'state'],
             });
             // Same point in the day: whole hours before this one, plus only the
             // elapsed share of the current hour (counting all of it made today
@@ -1017,7 +1027,7 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
         end_time: now.toISOString(),
         statistic_ids: ids,
         period: 'hour',
-        types: ['sum'],
+        types: ['sum', 'state'],
       }),
       hass.callApi('GET', `history/period/${todayStart.toISOString()}?filter_entity_id=${pid}&end_time=${now.toISOString()}&minimal_response&no_attributes`),
     ]);
@@ -1048,7 +1058,7 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
       for (let i = 1; i < rows.length; i++) {
         const st = new Date(rows[i].start).getTime();
         if (st < t0) continue;
-        perHour.set(st, (perHour.get(st) || 0) + Math.max(0, rows[i].sum - rows[i - 1].sum));
+        perHour.set(st, (perHour.get(st) || 0) + Math.max(0, statDelta(rows[i - 1], rows[i])));
       }
     });
     let cost = 0, done = 0, lastEnd = t0;

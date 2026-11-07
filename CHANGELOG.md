@@ -11,6 +11,7 @@
 - Goals card: the NOW marker and "trending to" projection use the real length of the day, week or month, so DST days (23/25 h) and the months around them are no longer off.
 - Device bubbles card: the "more/less than on recent <weekday>s" line compares against the same point in the day on those days, instead of counting their whole current hour.
 - Power meter card: the WK and MO ranges start on a Monday / the 1st of a month, so the first point is a whole week or month instead of a partial one.
+- All cards: "today", "this month", hour and week boundaries follow Home Assistant's time zone (the one its statistics use) instead of the browser's, so a browser in another time zone no longer shows wrong totals, goals or comparisons. The timeline still shows times in the viewer's zone unless their profile uses server time.
 
 ## [0.2.0] - 2026-11-04
 

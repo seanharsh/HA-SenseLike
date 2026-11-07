@@ -1,5 +1,36 @@
 // Sense-style "Usage" trend card — monthly cumulative usage vs. last month.
 // type: custom:senselike-usage-trend-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 class SenseLikeUsageTrendCard extends HTMLElement {
   static getStubConfig() {
     return { title: 'Usage', entity: 'sensor.home_energy_cost', unit: '$', decimals: 0 };
@@ -117,8 +148,11 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     if (!this._hass) return;
     const entity = this._config.entity;
     const now = new Date();
-    const startThis = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const tz = slTimeZone(this._hass);
+    const nowP = slParts(now, tz);
+    const startThis = slDate(tz, nowP.y, nowP.mo, 1);
+    const startPrev = slDate(tz, nowP.y, nowP.mo - 1, 1);
+    this._tz = tz;
     const endPrev = startThis;
     try {
       const res = await this._hass.callWS({
@@ -133,7 +167,7 @@ class SenseLikeUsageTrendCard extends HTMLElement {
       const prevRows = rows.filter((r) => new Date(r.start) >= startPrev && new Date(r.start) < endPrev);
       this._curSeries = this._cumulative(curRows);
       this._prevSeries = this._cumulative(prevRows);
-      this._daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      this._daysInMonth = new Date(Date.UTC(nowP.y, nowP.mo + 1, 0)).getUTCDate();
       this._monthStart = startThis;
       this._error = rows.length === 0 ? 'no-stats' : null;
 
@@ -143,10 +177,8 @@ class SenseLikeUsageTrendCard extends HTMLElement {
       // whole day made the "% more/less" read low all day long.
       this._prevAtSamePoint = null;
       if (prevRows.length) {
-        const prevDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
-        const cut = now.getDate() > prevDays
-          ? endPrev
-          : new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), now.getHours());
+        const prevDays = new Date(Date.UTC(nowP.y, nowP.mo, 0)).getUTCDate();
+        const cut = nowP.d > prevDays ? endPrev : slDate(tz, nowP.y, nowP.mo - 1, nowP.d, nowP.h);
         const hourly = await this._hass.callWS({
           type: 'recorder/statistics_during_period',
           start_time: startPrev.toISOString(),
@@ -245,10 +277,11 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     const prevDotY = prevAtToday != null ? yFor(prevAtToday) : null;
 
     const startLabel = this._monthStart
-      ? this._monthStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      ? this._monthStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: this._tz })
       : '';
-    const endDate = this._monthStart ? new Date(this._monthStart.getFullYear(), this._monthStart.getMonth() + 1, 0) : null;
-    const endLabel = endDate ? endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+    const ms = this._monthStart ? slParts(this._monthStart, this._tz) : null;
+    const endDate = ms ? slDate(this._tz, ms.y, ms.mo + 1, 0, 12) : null;
+    const endLabel = endDate ? endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: this._tz }) : '';
 
     return `
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">

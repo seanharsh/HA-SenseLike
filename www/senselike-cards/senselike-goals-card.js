@@ -1,5 +1,36 @@
 // Sense-style "Goals" card — progress bars with a "NOW" time marker and trend projection.
 // type: custom:senselike-goals-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 class SenseLikeGoalsCard extends HTMLElement {
   static getStubConfig() {
     return {
@@ -98,18 +129,19 @@ class SenseLikeGoalsCard extends HTMLElement {
     // Elapsed share of the real period, from its actual start/end instants, so
     // 23/25-hour DST days (and the months/weeks containing them) come out right.
     const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    const tz = slTimeZone(this._hass);
+    const { y, mo: m, d, wd } = slParts(now, tz);
     let start, end;
     if (period === 'day') {
-      start = new Date(y, m, d);
-      end = new Date(y, m, d + 1);
+      start = slDate(tz, y, m, d);
+      end = slDate(tz, y, m, d + 1);
     } else if (period === 'week') {
-      const mon = d - ((now.getDay() + 6) % 7); // Monday
-      start = new Date(y, m, mon);
-      end = new Date(y, m, mon + 7);
+      const mon = d - ((wd + 6) % 7); // Monday
+      start = slDate(tz, y, m, mon);
+      end = slDate(tz, y, m, mon + 7);
     } else {
-      start = new Date(y, m, 1);
-      end = new Date(y, m + 1, 1);
+      start = slDate(tz, y, m, 1);
+      end = slDate(tz, y, m + 1, 1);
     }
     return (now - start) / (end - start);
   }

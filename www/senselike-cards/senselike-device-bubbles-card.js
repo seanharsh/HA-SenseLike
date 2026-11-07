@@ -1,5 +1,36 @@
 // Sense-style "Now" card — circle-packed device power bubbles.
 // type: custom:senselike-device-bubbles-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 function packCircles(items, width, height) {
   const n = items.length;
   items.forEach((it, i) => {
@@ -107,11 +138,11 @@ function resolveEnergyEntity(hass, powerEntity) {
 // before the first hour they care about (query start_time - 1h) — without a
 // real prior sum to diff against, the first hour's usage is unknowable and
 // would otherwise have to be silently dropped rather than guessed at.
-function toHourlyKwh(arr) {
+function toHourlyKwh(arr, tz) {
   const hours = new Array(24).fill(0);
   if (!arr || arr.length < 2) return hours;
   for (let i = 1; i < arr.length; i++) {
-    const hourIdx = new Date(arr[i].start).getHours();
+    const hourIdx = tz ? slParts(new Date(arr[i].start), tz).h : new Date(arr[i].start).getHours();
     const delta = arr[i].sum - arr[i - 1].sum;
     hours[hourIdx] = Math.max(0, delta);
   }
@@ -338,9 +369,10 @@ class SenseLikeCostDialog extends HTMLElement {
     this._rate = resolveRate(hass, this._config);
 
     const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const currentHour = now.getHours();
+    const tz = slTimeZone(hass);
+    const nowP = slParts(now, tz);
+    const todayStart = slDate(tz, nowP.y, nowP.mo, nowP.d);
+    const currentHour = nowP.h;
 
     const devices = resolveDeviceList(hass, this._config)
       .map((d) => ({ name: d.name || d.entity, energyEntity: resolveEnergyEntity(hass, d.entity) }))
@@ -377,16 +409,15 @@ class SenseLikeCostDialog extends HTMLElement {
 
       const pastDays = [];
       for (let w = 1; w <= 8 && pastDays.length < 4; w++) {
-        const dayStart = new Date(todayStart);
-        dayStart.setDate(dayStart.getDate() - 7 * w);
+        const dayStart = slDate(tz, nowP.y, nowP.mo, nowP.d - 7 * w);
         if (dayStart < earliest) break;
         pastDays.push(dayStart);
       }
 
       const pastStatsByDay = [];
       for (const dayStart of pastDays) {
-        const dayEnd = new Date(dayStart);
-        dayEnd.setDate(dayEnd.getDate() + 1);
+        const dp = slParts(dayStart, tz);
+        const dayEnd = slDate(tz, dp.y, dp.mo, dp.d + 1);
         const stats = await hass.callWS({
           type: 'recorder/statistics_during_period',
           start_time: new Date(dayStart.getTime() - 3600000).toISOString(),
@@ -398,11 +429,11 @@ class SenseLikeCostDialog extends HTMLElement {
         pastStatsByDay.push(stats);
       }
 
-      const todayByDevice = devices.map((d) => toHourlyKwh(todayStats[d.energyEntity]));
+      const todayByDevice = devices.map((d) => toHourlyKwh(todayStats[d.energyEntity], tz));
       const pastByDevice = devices.map((d) => {
         const hourSums = new Array(24).fill(0);
         pastStatsByDay.forEach((dayStats) => {
-          toHourlyKwh(dayStats[d.energyEntity]).forEach((v, h) => { hourSums[h] += v; });
+          toHourlyKwh(dayStats[d.energyEntity], tz).forEach((v, h) => { hourSums[h] += v; });
         });
         const dayCount = pastStatsByDay.length;
         return hourSums.map((v) => (dayCount ? v / dayCount : 0));
@@ -458,8 +489,9 @@ class SenseLikeCostDialog extends HTMLElement {
     if (d && d.error) body = '<div class="empty">Cost data unavailable.</div>';
     else if (d && d.unavailable) body = '<div class="empty">No devices have an energy sensor to compare.</div>';
     else if (d) {
-      const todayLabel = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
-      const weekday = new Date().toLocaleDateString(undefined, { weekday: 'long' });
+      const tz = slTimeZone(this._hass);
+      const todayLabel = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', timeZone: tz });
+      const weekday = new Date().toLocaleDateString(undefined, { weekday: 'long', timeZone: tz });
       // A brand-new install has no same-weekday history yet — "Last 0
       // Thursdays — $0.00" reads as a real (zero-cost) data point rather
       // than "not enough history", so say so explicitly instead.
@@ -882,9 +914,10 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
     const rate = resolveRate(hass, this._config);
 
     const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const currentHour = now.getHours();
+    const tz = slTimeZone(hass);
+    const nowP = slParts(now, tz);
+    const todayStart = slDate(tz, nowP.y, nowP.mo, nowP.d);
+    const currentHour = nowP.h;
 
     const ids = resolveDeviceList(hass, this._config).map((d) => resolveEnergyEntity(hass, d.entity)).filter(Boolean);
     if (!ids.length) return;
@@ -923,8 +956,7 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
 
         const pastDays = [];
         for (let w = 1; w <= 8 && pastDays.length < 4; w++) {
-          const dayStart = new Date(todayStart);
-          dayStart.setDate(dayStart.getDate() - 7 * w);
+          const dayStart = slDate(tz, nowP.y, nowP.mo, nowP.d - 7 * w);
           if (dayStart < earliest) break;
           pastDays.push(dayStart);
         }
@@ -932,8 +964,8 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
         if (pastDays.length) {
           let pastKwh = 0;
           for (const dayStart of pastDays) {
-            const dayEnd = new Date(dayStart);
-            dayEnd.setDate(dayEnd.getDate() + 1);
+            const dp = slParts(dayStart, tz);
+            const dayEnd = slDate(tz, dp.y, dp.mo, dp.d + 1);
             const stats = await hass.callWS({
               type: 'recorder/statistics_during_period',
               start_time: new Date(dayStart.getTime() - 3600000).toISOString(),
@@ -945,9 +977,9 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
             // Same point in the day: whole hours before this one, plus only the
             // elapsed share of the current hour (counting all of it made today
             // look lower than recent days).
-            const hourFrac = (now.getMinutes() * 60 + now.getSeconds()) / 3600;
+            const hourFrac = (nowP.mi * 60 + nowP.s) / 3600;
             ids.forEach((id) => {
-              toHourlyKwh(stats[id]).forEach((v, h) => {
+              toHourlyKwh(stats[id], tz).forEach((v, h) => {
                 if (h < currentHour) pastKwh += v;
                 else if (h === currentHour) pastKwh += v * hourFrac;
               });
@@ -957,7 +989,7 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
           if (pastAvg > 0) {
             const diffPct = (todayKwh - pastAvg) / pastAvg;
             const phrase = diffPct > 0.1 ? 'more than' : diffPct < -0.1 ? 'less than' : 'about the same as';
-            const weekday = now.toLocaleDateString(undefined, { weekday: 'long' });
+            const weekday = now.toLocaleDateString(undefined, { weekday: 'long', timeZone: tz });
             this._autoCompareHtml = `This is <b>${phrase}</b> on recent ${escHtml(weekday)}s.`;
             const compareEl = this.shadowRoot.getElementById('compare-text');
             if (compareEl) compareEl.innerHTML = this._autoCompareHtml;

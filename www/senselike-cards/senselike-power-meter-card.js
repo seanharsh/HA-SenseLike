@@ -1,5 +1,36 @@
 // Sense-style live "Meter" card — power over time with MIN/HR/DAY/WK/MO range tabs.
 // type: custom:senselike-power-meter-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 const RANGES = {
   min: { label: 'MIN', mode: 'raw', ms: 60 * 60 * 1000 },
   hr: { label: 'HR', mode: 'raw', ms: 24 * 60 * 60 * 1000 },
@@ -148,11 +179,14 @@ class SenseLikePowerMeterCard extends HTMLElement {
     let start = new Date(end.getTime() - rangeDef.ms);
     // Week/month buckets: start on a bucket boundary so the first point is a
     // whole week/month, not a partial one plotted like a full one.
+    const tz = slTimeZone(this._hass);
+    const nowP = slParts(end, tz);
     if (rangeDef.period === 'month') {
-      start = new Date(end.getFullYear(), end.getMonth() - 12, 1);
+      start = slDate(tz, nowP.y, nowP.mo - 12, 1);
     } else if (rangeDef.period === 'week') {
-      start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - ((end.getDay() + 6) % 7) - 25 * 7);
+      start = slDate(tz, nowP.y, nowP.mo, nowP.d - ((nowP.wd + 6) % 7) - 25 * 7);
     }
+    this._tz = tz;
     let series = [];
     try {
       if (rangeDef.mode === 'raw') {
@@ -186,7 +220,7 @@ class SenseLikePowerMeterCard extends HTMLElement {
   _renderDate() {
     const dateEl = this.shadowRoot.getElementById('date');
     if (!this._rangeEnd) return;
-    dateEl.textContent = this._rangeEnd.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    dateEl.textContent = this._rangeEnd.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: this._tz });
   }
 
   _renderChart() {

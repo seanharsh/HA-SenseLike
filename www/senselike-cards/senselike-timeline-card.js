@@ -2,6 +2,37 @@
 // binary_sensor/switch siblings (via the HA device registry) or synthesized from
 // power-sensor history when no on/off entity exists.
 // type: custom:senselike-timeline-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 
 // Expands the hand-picked `config.devices` list with every power sensor
 // whose entity (or owning device) sits in one of `config.areas` or carries
@@ -162,9 +193,12 @@ class SenseLikeTimelineCard extends HTMLElement {
     if (!this._built || !this._hass) return;
     const container = this.shadowRoot.getElementById('timeline-items');
     if (!container) return;
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
     const end = new Date();
+    const tz = slTimeZone(this._hass);
+    const nowP = slParts(end, tz);
+    const start = slDate(tz, nowP.y, nowP.mo, nowP.d); // HA's "today"
+    // Show times in the viewer's zone unless their HA profile asks for server time.
+    const displayTz = this._hass.locale && this._hass.locale.time_zone === 'server' ? tz : undefined;
 
     const explicitIds = this._config.timeline_entities && this._config.timeline_entities.length
       ? this._config.timeline_entities
@@ -225,7 +259,7 @@ class SenseLikeTimelineCard extends HTMLElement {
       }
       container.innerHTML = rows
         .map((r, i) => {
-          const time = new Date(r.when).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+          const time = new Date(r.when).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: displayTz });
           const msg = r.message ? `${this._esc(r.name || '')} ${this._esc(r.message)}` : this._esc(r.name || '');
           return `
             <div class="tl-item" style="animation-delay:${i * 40}ms;">

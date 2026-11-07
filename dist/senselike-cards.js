@@ -4,6 +4,37 @@
 {
 // Sense-style "Now" card — circle-packed device power bubbles.
 // type: custom:senselike-device-bubbles-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 function packCircles(items, width, height) {
   const n = items.length;
   items.forEach((it, i) => {
@@ -111,11 +142,11 @@ function resolveEnergyEntity(hass, powerEntity) {
 // before the first hour they care about (query start_time - 1h) — without a
 // real prior sum to diff against, the first hour's usage is unknowable and
 // would otherwise have to be silently dropped rather than guessed at.
-function toHourlyKwh(arr) {
+function toHourlyKwh(arr, tz) {
   const hours = new Array(24).fill(0);
   if (!arr || arr.length < 2) return hours;
   for (let i = 1; i < arr.length; i++) {
-    const hourIdx = new Date(arr[i].start).getHours();
+    const hourIdx = tz ? slParts(new Date(arr[i].start), tz).h : new Date(arr[i].start).getHours();
     const delta = arr[i].sum - arr[i - 1].sum;
     hours[hourIdx] = Math.max(0, delta);
   }
@@ -342,9 +373,10 @@ class SenseLikeCostDialog extends HTMLElement {
     this._rate = resolveRate(hass, this._config);
 
     const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const currentHour = now.getHours();
+    const tz = slTimeZone(hass);
+    const nowP = slParts(now, tz);
+    const todayStart = slDate(tz, nowP.y, nowP.mo, nowP.d);
+    const currentHour = nowP.h;
 
     const devices = resolveDeviceList(hass, this._config)
       .map((d) => ({ name: d.name || d.entity, energyEntity: resolveEnergyEntity(hass, d.entity) }))
@@ -381,16 +413,15 @@ class SenseLikeCostDialog extends HTMLElement {
 
       const pastDays = [];
       for (let w = 1; w <= 8 && pastDays.length < 4; w++) {
-        const dayStart = new Date(todayStart);
-        dayStart.setDate(dayStart.getDate() - 7 * w);
+        const dayStart = slDate(tz, nowP.y, nowP.mo, nowP.d - 7 * w);
         if (dayStart < earliest) break;
         pastDays.push(dayStart);
       }
 
       const pastStatsByDay = [];
       for (const dayStart of pastDays) {
-        const dayEnd = new Date(dayStart);
-        dayEnd.setDate(dayEnd.getDate() + 1);
+        const dp = slParts(dayStart, tz);
+        const dayEnd = slDate(tz, dp.y, dp.mo, dp.d + 1);
         const stats = await hass.callWS({
           type: 'recorder/statistics_during_period',
           start_time: new Date(dayStart.getTime() - 3600000).toISOString(),
@@ -402,11 +433,11 @@ class SenseLikeCostDialog extends HTMLElement {
         pastStatsByDay.push(stats);
       }
 
-      const todayByDevice = devices.map((d) => toHourlyKwh(todayStats[d.energyEntity]));
+      const todayByDevice = devices.map((d) => toHourlyKwh(todayStats[d.energyEntity], tz));
       const pastByDevice = devices.map((d) => {
         const hourSums = new Array(24).fill(0);
         pastStatsByDay.forEach((dayStats) => {
-          toHourlyKwh(dayStats[d.energyEntity]).forEach((v, h) => { hourSums[h] += v; });
+          toHourlyKwh(dayStats[d.energyEntity], tz).forEach((v, h) => { hourSums[h] += v; });
         });
         const dayCount = pastStatsByDay.length;
         return hourSums.map((v) => (dayCount ? v / dayCount : 0));
@@ -462,8 +493,9 @@ class SenseLikeCostDialog extends HTMLElement {
     if (d && d.error) body = '<div class="empty">Cost data unavailable.</div>';
     else if (d && d.unavailable) body = '<div class="empty">No devices have an energy sensor to compare.</div>';
     else if (d) {
-      const todayLabel = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
-      const weekday = new Date().toLocaleDateString(undefined, { weekday: 'long' });
+      const tz = slTimeZone(this._hass);
+      const todayLabel = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', timeZone: tz });
+      const weekday = new Date().toLocaleDateString(undefined, { weekday: 'long', timeZone: tz });
       // A brand-new install has no same-weekday history yet — "Last 0
       // Thursdays — $0.00" reads as a real (zero-cost) data point rather
       // than "not enough history", so say so explicitly instead.
@@ -886,9 +918,10 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
     const rate = resolveRate(hass, this._config);
 
     const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const currentHour = now.getHours();
+    const tz = slTimeZone(hass);
+    const nowP = slParts(now, tz);
+    const todayStart = slDate(tz, nowP.y, nowP.mo, nowP.d);
+    const currentHour = nowP.h;
 
     const ids = resolveDeviceList(hass, this._config).map((d) => resolveEnergyEntity(hass, d.entity)).filter(Boolean);
     if (!ids.length) return;
@@ -927,8 +960,7 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
 
         const pastDays = [];
         for (let w = 1; w <= 8 && pastDays.length < 4; w++) {
-          const dayStart = new Date(todayStart);
-          dayStart.setDate(dayStart.getDate() - 7 * w);
+          const dayStart = slDate(tz, nowP.y, nowP.mo, nowP.d - 7 * w);
           if (dayStart < earliest) break;
           pastDays.push(dayStart);
         }
@@ -936,8 +968,8 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
         if (pastDays.length) {
           let pastKwh = 0;
           for (const dayStart of pastDays) {
-            const dayEnd = new Date(dayStart);
-            dayEnd.setDate(dayEnd.getDate() + 1);
+            const dp = slParts(dayStart, tz);
+            const dayEnd = slDate(tz, dp.y, dp.mo, dp.d + 1);
             const stats = await hass.callWS({
               type: 'recorder/statistics_during_period',
               start_time: new Date(dayStart.getTime() - 3600000).toISOString(),
@@ -949,9 +981,9 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
             // Same point in the day: whole hours before this one, plus only the
             // elapsed share of the current hour (counting all of it made today
             // look lower than recent days).
-            const hourFrac = (now.getMinutes() * 60 + now.getSeconds()) / 3600;
+            const hourFrac = (nowP.mi * 60 + nowP.s) / 3600;
             ids.forEach((id) => {
-              toHourlyKwh(stats[id]).forEach((v, h) => {
+              toHourlyKwh(stats[id], tz).forEach((v, h) => {
                 if (h < currentHour) pastKwh += v;
                 else if (h === currentHour) pastKwh += v * hourFrac;
               });
@@ -961,7 +993,7 @@ class SenseLikeDeviceBubblesCard extends HTMLElement {
           if (pastAvg > 0) {
             const diffPct = (todayKwh - pastAvg) / pastAvg;
             const phrase = diffPct > 0.1 ? 'more than' : diffPct < -0.1 ? 'less than' : 'about the same as';
-            const weekday = now.toLocaleDateString(undefined, { weekday: 'long' });
+            const weekday = now.toLocaleDateString(undefined, { weekday: 'long', timeZone: tz });
             this._autoCompareHtml = `This is <b>${phrase}</b> on recent ${escHtml(weekday)}s.`;
             const compareEl = this.shadowRoot.getElementById('compare-text');
             if (compareEl) compareEl.innerHTML = this._autoCompareHtml;
@@ -1287,6 +1319,37 @@ window.customCards.push({
 {
 // Sense-style live "Meter" card — power over time with MIN/HR/DAY/WK/MO range tabs.
 // type: custom:senselike-power-meter-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 const RANGES = {
   min: { label: 'MIN', mode: 'raw', ms: 60 * 60 * 1000 },
   hr: { label: 'HR', mode: 'raw', ms: 24 * 60 * 60 * 1000 },
@@ -1435,11 +1498,14 @@ class SenseLikePowerMeterCard extends HTMLElement {
     let start = new Date(end.getTime() - rangeDef.ms);
     // Week/month buckets: start on a bucket boundary so the first point is a
     // whole week/month, not a partial one plotted like a full one.
+    const tz = slTimeZone(this._hass);
+    const nowP = slParts(end, tz);
     if (rangeDef.period === 'month') {
-      start = new Date(end.getFullYear(), end.getMonth() - 12, 1);
+      start = slDate(tz, nowP.y, nowP.mo - 12, 1);
     } else if (rangeDef.period === 'week') {
-      start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - ((end.getDay() + 6) % 7) - 25 * 7);
+      start = slDate(tz, nowP.y, nowP.mo, nowP.d - ((nowP.wd + 6) % 7) - 25 * 7);
     }
+    this._tz = tz;
     let series = [];
     try {
       if (rangeDef.mode === 'raw') {
@@ -1473,7 +1539,7 @@ class SenseLikePowerMeterCard extends HTMLElement {
   _renderDate() {
     const dateEl = this.shadowRoot.getElementById('date');
     if (!this._rangeEnd) return;
-    dateEl.textContent = this._rangeEnd.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    dateEl.textContent = this._rangeEnd.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: this._tz });
   }
 
   _renderChart() {
@@ -1609,6 +1675,37 @@ window.customCards.push({
 {
 // Sense-style "Goals" card — progress bars with a "NOW" time marker and trend projection.
 // type: custom:senselike-goals-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 class SenseLikeGoalsCard extends HTMLElement {
   static getStubConfig() {
     return {
@@ -1707,18 +1804,19 @@ class SenseLikeGoalsCard extends HTMLElement {
     // Elapsed share of the real period, from its actual start/end instants, so
     // 23/25-hour DST days (and the months/weeks containing them) come out right.
     const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    const tz = slTimeZone(this._hass);
+    const { y, mo: m, d, wd } = slParts(now, tz);
     let start, end;
     if (period === 'day') {
-      start = new Date(y, m, d);
-      end = new Date(y, m, d + 1);
+      start = slDate(tz, y, m, d);
+      end = slDate(tz, y, m, d + 1);
     } else if (period === 'week') {
-      const mon = d - ((now.getDay() + 6) % 7); // Monday
-      start = new Date(y, m, mon);
-      end = new Date(y, m, mon + 7);
+      const mon = d - ((wd + 6) % 7); // Monday
+      start = slDate(tz, y, m, mon);
+      end = slDate(tz, y, m, mon + 7);
     } else {
-      start = new Date(y, m, 1);
-      end = new Date(y, m + 1, 1);
+      start = slDate(tz, y, m, 1);
+      end = slDate(tz, y, m + 1, 1);
     }
     return (now - start) / (end - start);
   }
@@ -1946,6 +2044,37 @@ window.customCards.push({
 {
 // Sense-style "Usage" trend card — monthly cumulative usage vs. last month.
 // type: custom:senselike-usage-trend-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 class SenseLikeUsageTrendCard extends HTMLElement {
   static getStubConfig() {
     return { title: 'Usage', entity: 'sensor.home_energy_cost', unit: '$', decimals: 0 };
@@ -2063,8 +2192,11 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     if (!this._hass) return;
     const entity = this._config.entity;
     const now = new Date();
-    const startThis = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const tz = slTimeZone(this._hass);
+    const nowP = slParts(now, tz);
+    const startThis = slDate(tz, nowP.y, nowP.mo, 1);
+    const startPrev = slDate(tz, nowP.y, nowP.mo - 1, 1);
+    this._tz = tz;
     const endPrev = startThis;
     try {
       const res = await this._hass.callWS({
@@ -2079,7 +2211,7 @@ class SenseLikeUsageTrendCard extends HTMLElement {
       const prevRows = rows.filter((r) => new Date(r.start) >= startPrev && new Date(r.start) < endPrev);
       this._curSeries = this._cumulative(curRows);
       this._prevSeries = this._cumulative(prevRows);
-      this._daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      this._daysInMonth = new Date(Date.UTC(nowP.y, nowP.mo + 1, 0)).getUTCDate();
       this._monthStart = startThis;
       this._error = rows.length === 0 ? 'no-stats' : null;
 
@@ -2089,10 +2221,8 @@ class SenseLikeUsageTrendCard extends HTMLElement {
       // whole day made the "% more/less" read low all day long.
       this._prevAtSamePoint = null;
       if (prevRows.length) {
-        const prevDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
-        const cut = now.getDate() > prevDays
-          ? endPrev
-          : new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), now.getHours());
+        const prevDays = new Date(Date.UTC(nowP.y, nowP.mo, 0)).getUTCDate();
+        const cut = nowP.d > prevDays ? endPrev : slDate(tz, nowP.y, nowP.mo - 1, nowP.d, nowP.h);
         const hourly = await this._hass.callWS({
           type: 'recorder/statistics_during_period',
           start_time: startPrev.toISOString(),
@@ -2191,10 +2321,11 @@ class SenseLikeUsageTrendCard extends HTMLElement {
     const prevDotY = prevAtToday != null ? yFor(prevAtToday) : null;
 
     const startLabel = this._monthStart
-      ? this._monthStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      ? this._monthStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: this._tz })
       : '';
-    const endDate = this._monthStart ? new Date(this._monthStart.getFullYear(), this._monthStart.getMonth() + 1, 0) : null;
-    const endLabel = endDate ? endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+    const ms = this._monthStart ? slParts(this._monthStart, this._tz) : null;
+    const endDate = ms ? slDate(this._tz, ms.y, ms.mo + 1, 0, 12) : null;
+    const endLabel = endDate ? endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: this._tz }) : '';
 
     return `
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
@@ -2296,6 +2427,37 @@ window.customCards.push({
 // binary_sensor/switch siblings (via the HA device registry) or synthesized from
 // power-sensor history when no on/off entity exists.
 // type: custom:senselike-timeline-card
+// Home Assistant's own time zone. The recorder buckets statistics in it, so
+// "today", "this month" and hour boundaries follow it rather than the
+// browser's clock (a browser in another zone would misread every period).
+// (Shared verbatim by every SenseLike card file; keep the copies identical.)
+function slTimeZone(hass) {
+  return (hass && hass.config && hass.config.time_zone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Wall-clock parts of `date` in `tz`: month is 0-based and wd 0 = Sunday, like Date.
+function slParts(date, tz) {
+  const o = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', weekday: 'short',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+  }).formatToParts(date).forEach((p) => { o[p.type] = p.value; });
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(o.weekday);
+  return { y: +o.year, mo: +o.month - 1, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, wd };
+}
+
+// The instant of wall-clock y/mo/d h:mi in `tz`. Out-of-range fields roll
+// over like `new Date(y, mo, d)` (e.g. d + 1 past month end, mo - 1 in January).
+function slDate(tz, y, mo, d, h = 0, mi = 0) {
+  const want = Date.UTC(y, mo, d, h, mi);
+  let t = want;
+  for (let i = 0; i < 3; i++) {
+    const p = slParts(new Date(t), tz);
+    t += want - Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s);
+  }
+  return new Date(t);
+}
+
 
 // Expands the hand-picked `config.devices` list with every power sensor
 // whose entity (or owning device) sits in one of `config.areas` or carries
@@ -2456,9 +2618,12 @@ class SenseLikeTimelineCard extends HTMLElement {
     if (!this._built || !this._hass) return;
     const container = this.shadowRoot.getElementById('timeline-items');
     if (!container) return;
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
     const end = new Date();
+    const tz = slTimeZone(this._hass);
+    const nowP = slParts(end, tz);
+    const start = slDate(tz, nowP.y, nowP.mo, nowP.d); // HA's "today"
+    // Show times in the viewer's zone unless their HA profile asks for server time.
+    const displayTz = this._hass.locale && this._hass.locale.time_zone === 'server' ? tz : undefined;
 
     const explicitIds = this._config.timeline_entities && this._config.timeline_entities.length
       ? this._config.timeline_entities
@@ -2519,7 +2684,7 @@ class SenseLikeTimelineCard extends HTMLElement {
       }
       container.innerHTML = rows
         .map((r, i) => {
-          const time = new Date(r.when).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+          const time = new Date(r.when).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: displayTz });
           const msg = r.message ? `${this._esc(r.name || '')} ${this._esc(r.message)}` : this._esc(r.name || '');
           return `
             <div class="tl-item" style="animation-delay:${i * 40}ms;">

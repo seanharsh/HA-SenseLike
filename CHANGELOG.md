@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-08
+
 ### Fixed
 - Usage trend card: "% more/less than last month" now compares against last month at the same day and hour, instead of against that whole day (it read too low, especially early in the month).
 - Usage trend card: days where a cost or net-energy statistic went down (negative prices, export credits) are no longer counted as zero, so month totals match; the chart scales below zero when needed.
